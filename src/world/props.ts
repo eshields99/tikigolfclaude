@@ -518,3 +518,121 @@ export function hutGeo(): THREE.BufferGeometry {
 }
 
 export { col };
+
+// ---------------------------------------------------------------------------
+// Broadleaf jungle tree (~7-9 units): flared trunk with buttress roots and a lumpy canopy.
+// ---------------------------------------------------------------------------
+export function jungleTreeGeo(seed: number): THREE.BufferGeometry {
+  return memo('jtree' + seed, () => {
+    const rng = new Rng(seed * 131 + 17);
+    const gb = new GeoBuilder();
+    const H = rng.range(5.5, 7.5);
+    const lean = new THREE.Vector3(rng.range(-0.6, 0.6), 0, rng.range(-0.6, 0.6));
+    // trunk: stacked tapered cylinders along a gentle curve
+    const segs = 7;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      pts.push(new THREE.Vector3(lean.x * t * t, H * t, lean.z * t * t));
+    }
+    const bark = (k: number) => jitterColor(0x6b5340, () => rng.next(), 0.02, 0.05, 0.06).multiplyScalar(0.85 + k * 0.25);
+    for (let i = 0; i < segs; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const r0 = 0.42 * (1 - (i / segs) * 0.6), r1 = 0.42 * (1 - ((i + 1) / segs) * 0.6);
+      const len = a.distanceTo(b);
+      const cyl = new THREE.CylinderGeometry(r1, r0, len * 1.04, 9, 1);
+      const mid = a.clone().lerp(b, 0.5);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      gb.add(cyl, new THREE.Matrix4().compose(mid, q, new THREE.Vector3(1, 1, 1)), bark(i / segs), (p) => Math.max(0, p.y / H) ** 2 * 0.15);
+    }
+    // buttress roots
+    const nRoots = rng.int(4, 6);
+    for (let i = 0; i < nRoots; i++) {
+      const ang = (i / nRoots) * Math.PI * 2 + rng.range(-0.3, 0.3);
+      const root = new THREE.ConeGeometry(0.32, 1.4, 5, 1);
+      root.translate(0, 0.7, 0);
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(Math.cos(ang) * 0.25, -0.05, Math.sin(ang) * 0.25),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(ang) * 0.75, 0, -Math.cos(ang) * 0.75)),
+        new THREE.Vector3(0.6, 1, 1.4),
+      );
+      gb.add(root, m, bark(0.1), 0);
+    }
+    // canopy: clusters of lumpy leaf blobs
+    const top = pts[segs];
+    const nBlobs = rng.int(6, 9);
+    let blob: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, 2);
+    blob.deleteAttribute('uv');
+    blob.deleteAttribute('normal');
+    blob = mergeVertices(blob, 1e-4);
+    {
+      const bp = blob.getAttribute('position') as THREE.BufferAttribute;
+      const o = rng.range(0, 100);
+      for (let i = 0; i < bp.count; i++) {
+        const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
+        const n = 1 + nz.fbm3(x * 1.7 + o, y * 1.7, z * 1.7, 3) * 0.28 + Math.abs(nz.noise3(x * 4.2, y * 4.2 + o, z * 4.2)) * 0.12;
+        bp.setXYZ(i, x * n, y * n, z * n);
+      }
+      blob.computeVertexNormals();
+    }
+    for (let i = 0; i < nBlobs; i++) {
+      const ang = rng.range(0, Math.PI * 2);
+      const rad = i === 0 ? 0 : rng.range(0.9, 2.3);
+      const y = top.y + rng.range(-0.6, 0.9) - rad * 0.25;
+      const r = rng.range(1.2, 1.9);
+      const c = jitterColor(rng.next() < 0.5 ? 0x2f7d34 : 0x3c8f2e, () => rng.next(), 0.03, 0.08, 0.1);
+      gb.add(
+        blob,
+        M.compose(top.x + Math.cos(ang) * rad, y, top.z + Math.sin(ang) * rad, rng.range(0, 3), rng.range(0, 3), 0, r * 1.1, r * 0.72, r),
+        (p, n) => {
+          // lighter sunlit tops with yellow-green patches, darker underside
+          const k = 0.62 + Math.max(0, n.y) * 0.5 + (p.y - top.y) * 0.04;
+          const patch = Math.max(0, nz.noise3(p.x * 0.9, p.y * 0.9, p.z * 0.9));
+          return c.clone().lerp(new THREE.Color(0x8fc63a), patch * 0.45 * Math.max(0, n.y)).multiplyScalar(k);
+        },
+        (p) => 0.18 + Math.max(0, p.y - top.y + 1) * 0.06,
+      );
+    }
+    // a few hanging vines
+    for (let i = 0; i < 4; i++) {
+      const ang = rng.range(0, Math.PI * 2);
+      const rad = rng.range(1.0, 2.0);
+      const len = rng.range(1.6, 3.2);
+      const v = new THREE.CylinderGeometry(0.025, 0.035, len, 4, 1);
+      gb.add(v, M.compose(top.x + Math.cos(ang) * rad, top.y - 0.6 - len / 2, top.z + Math.sin(ang) * rad), 0x3f6e2a, (p) => 0.2 + Math.max(0, top.y - p.y) * 0.08);
+    }
+    return gb.build(true);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Obsidian spire: tall faceted volcanic rock with faint glowing veins (vertex color).
+// ---------------------------------------------------------------------------
+export function spireGeo(seed: number): THREE.BufferGeometry {
+  return memo('spire' + seed, () => {
+    const rng = new Rng(seed * 71 + 5);
+    let g: THREE.BufferGeometry = new THREE.ConeGeometry(1, 3.2, 6, 4);
+    g.deleteAttribute('uv');
+    g.deleteAttribute('normal');
+    g = mergeVertices(g, 1e-4);
+    const p = g.getAttribute('position') as THREE.BufferAttribute;
+    const o = rng.range(0, 50);
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const n = 1 + nz.noise3(x * 1.3 + o, y * 0.8, z * 1.3) * 0.25;
+      p.setXYZ(i, x * n + Math.sin(y * 0.7 + o) * 0.15, y + 1.6, z * n);
+    }
+    g = g.toNonIndexed();
+    g.computeVertexNormals();
+    const P = g.getAttribute('position') as THREE.BufferAttribute;
+    const cols: number[] = [];
+    for (let i = 0; i < P.count; i++) {
+      const y = P.getY(i);
+      const vein = Math.max(0, nz.noise3(P.getX(i) * 3 + o, y * 2.5, P.getZ(i) * 3) - 0.55) * 2.2;
+      const base = 0.13 + (y / 3.2) * 0.05;
+      cols.push(base + vein * 0.9, base * 0.9 + vein * 0.25, base * 1.05);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    return g;
+  });
+}

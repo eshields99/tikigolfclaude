@@ -5,7 +5,7 @@ import type { IslandBuild } from './island';
 import type { EnvPreset } from './environment';
 import type { DecorDef } from '../course/types';
 import { Rng, hashString } from '../core/math';
-import { palmGeo, fernGeo, leafPlantGeo, flowerBushGeo, boulderGeo, tikiGeo, torchGeo, hutGeo, TORCH_TOP } from './props';
+import { palmGeo, fernGeo, leafPlantGeo, flowerBushGeo, boulderGeo, tikiGeo, torchGeo, hutGeo, jungleTreeGeo, spireGeo, TORCH_TOP } from './props';
 import { makeFoliageMaterial, makeVertexColorMaterial } from '../render/materials';
 import { getRockMaterial, getTikiMaterial } from '../course/obstacles';
 import { FlameField } from '../render/fx';
@@ -132,10 +132,13 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
   });
 
   // ---------------------------------------------------------------- scatter
+  // Two passes over a jittered grid: big trees first (so they get clearance), then rocks & undergrowth.
   const half = island.half;
   const cx = island.center.x, cz = island.center.y;
   const step = 1.15;
   const density = hole.def.island?.jungle ?? (theme === 'jungle' ? 1 : theme === 'volcano' ? 0.55 : 0.75);
+  interface Cell { x: number; z: number; y: number; cd: number; inland: number }
+  const cells: Cell[] = [];
   for (let gz = -half + 4; gz < half - 4; gz += step) {
     for (let gx = -half + 4; gx < half - 4; gx += step) {
       const x = cx + gx + rng.range(-0.5, 0.5), z = cz + gz + rng.range(-0.5, 0.5);
@@ -144,55 +147,64 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
       let excluded = false;
       for (const e of exclude) if (e.f(x, z) < 1.2) { excluded = true; break; }
       if (excluded) continue;
-      const y = island.heightAt(x, z);
-      const ld = island.landSDF(x, z);
-      const distFromCenter = Math.hypot(x - cx, z - cz);
-      if (distFromCenter > half - 6) continue;
-      if (y < -0.05) {
-        // rocks poking out of the shallows, especially around the course bases
-        if (y > -1.4 && rng.next() < (cd < 3 ? 0.1 : 0.02) && free(x, z, 1.2)) {
-          const r = rng.range(0.7, 1.7);
-          const hh = r * rng.range(0.7, 1.05);
-          const top = rng.range(0.25, 0.9);
-          add('rock' + rng.int(0, 5), x, top - hh * 0.75, z, rng.range(0, 6.28), new THREE.Vector3(r, hh, r));
-          island.stamp(x, z, r * 0.8, 0.3);
-          occupy(x, z, r);
-        }
-        continue;
-      }
-      const inland = -ld;
-      const p = rng.next();
-      // palms: beaches & lowlands, away from the course
-      if (cd > 3.2 && inland > 0.6 && p < 0.05 * (theme === 'volcano' ? 0.5 : 1.2) && free(x, z, 3.0)) {
-        add('palm' + rng.int(0, 3), x, y - 0.1, z, rng.range(0, 6.28), rng.range(0.85, 1.2));
-        occupy(x, z, 3.0);
-        continue;
-      }
-      if (inland < 1.2 && cd > 2) continue; // keep beaches open
-      // plants hugging the walls
-      const nearWall = cd < 2.4;
-      const chance = (nearWall ? 0.55 : 0.2) * density * detail;
-      if (rng.next() > chance) continue;
-      const r2 = rng.next();
-      if (theme === 'volcano' && r2 < 0.25) {
-        if (free(x, z, 0.8)) {
-          const r = rng.range(0.4, 1.1);
-          add('rock' + rng.int(0, 5), x, y - r * 0.25, z, rng.range(0, 6.28), new THREE.Vector3(r, r * 0.8, r));
-          occupy(x, z, r);
-        }
-        continue;
-      }
-      if (r2 < 0.38) {
-        if (free(x, z, 0.7)) { add('fern' + rng.int(0, 2), x, y, z, rng.range(0, 6.28), rng.range(0.7, 1.25)); occupy(x, z, 0.7); }
-      } else if (r2 < 0.62) {
-        if (free(x, z, 0.8)) { add('leaf' + rng.int(0, 2), x, y, z, rng.range(0, 6.28), rng.range(0.8, 1.3)); occupy(x, z, 0.8); }
-      } else if (r2 < 0.82) {
-        if (free(x, z, 0.6)) { add('flower' + rng.int(0, 4), x, y, z, rng.range(0, 6.28), rng.range(0.8, 1.3)); occupy(x, z, 0.6); }
-      } else if (free(x, z, 0.7)) {
-        const r = rng.range(0.35, 0.8);
-        add('rock' + rng.int(0, 5), x, y - r * 0.3, z, rng.range(0, 6.28), new THREE.Vector3(r, r * 0.7, r));
+      if (Math.hypot(x - cx, z - cz) > half - 6) continue;
+      cells.push({ x, z, y: island.heightAt(x, z), cd, inland: -island.landSDF(x, z) });
+    }
+  }
+  // pass 1: trees & spires
+  for (const { x, z, y, cd, inland } of cells) {
+    if (y < -0.05) continue;
+    const p = rng.next();
+    if (theme === 'jungle' && cd > 5.2 && inland > 1.2 && p < 0.1 && free(x, z, 3.0)) {
+      add('jtree' + rng.int(0, 3), x, y - 0.15, z, rng.range(0, 6.28), rng.range(0.85, 1.2));
+      occupy(x, z, 3.2);
+    } else if (theme === 'volcano' && cd > 3.5 && inland > 1.5 && p < 0.03 && free(x, z, 2.2)) {
+      const sc = rng.range(0.6, 1.3);
+      add('spire' + rng.int(0, 3), x, y - 0.3, z, rng.range(0, 6.28), new THREE.Vector3(sc, sc * rng.range(0.9, 1.5), sc));
+      occupy(x, z, 2.2 * sc);
+    } else if (cd > 3.2 && inland > 0.6 && p < 0.05 * (theme === 'volcano' ? 0.5 : 1.2) && free(x, z, 3.0)) {
+      add('palm' + rng.int(0, 3), x, y - 0.1, z, rng.range(0, 6.28), rng.range(0.85, 1.2));
+      occupy(x, z, 3.0);
+    }
+  }
+  // pass 2: shallows rocks, undergrowth and boulders
+  for (const { x, z, y, cd, inland } of cells) {
+    if (y < -0.05) {
+      // rocks poking out of the shallows, especially around the course bases
+      if (y > -1.4 && rng.next() < (cd < 3 ? 0.1 : 0.02) && free(x, z, 1.2)) {
+        const r = rng.range(0.7, 1.7);
+        const hh = r * rng.range(0.7, 1.05);
+        const top = rng.range(0.25, 0.9);
+        add('rock' + rng.int(0, 5), x, top - hh * 0.75, z, rng.range(0, 6.28), new THREE.Vector3(r, hh, r));
+        island.stamp(x, z, r * 0.8, 0.3);
         occupy(x, z, r);
       }
+      continue;
+    }
+    if (inland < 1.2 && cd > 2) continue; // keep beaches open
+    // plants hug the walls; undergrowth is denser around tree trunks
+    const nearWall = cd < 2.4;
+    const chance = (nearWall ? 0.55 : 0.2) * density * detail;
+    if (rng.next() > chance) continue;
+    const r2 = rng.next();
+    if (theme === 'volcano' && r2 < 0.25) {
+      if (free(x, z, 0.8)) {
+        const r = rng.range(0.4, 1.1);
+        add('rock' + rng.int(0, 5), x, y - r * 0.25, z, rng.range(0, 6.28), new THREE.Vector3(r, r * 0.8, r));
+        occupy(x, z, r);
+      }
+      continue;
+    }
+    if (r2 < 0.38) {
+      if (free(x, z, 0.7)) { add('fern' + rng.int(0, 2), x, y, z, rng.range(0, 6.28), rng.range(0.7, 1.25)); occupy(x, z, 0.7); }
+    } else if (r2 < 0.62) {
+      if (free(x, z, 0.8)) { add('leaf' + rng.int(0, 2), x, y, z, rng.range(0, 6.28), rng.range(0.8, 1.3)); occupy(x, z, 0.8); }
+    } else if (r2 < 0.82) {
+      if (free(x, z, 0.6)) { add('flower' + rng.int(0, 4), x, y, z, rng.range(0, 6.28), rng.range(0.8, 1.3)); occupy(x, z, 0.6); }
+    } else if (free(x, z, 0.7)) {
+      const r = rng.range(0.35, 0.8);
+      add('rock' + rng.int(0, 5), x, y - r * 0.3, z, rng.range(0, 6.28), new THREE.Vector3(r, r * 0.7, r));
+      occupy(x, z, r);
     }
   }
 
@@ -209,6 +221,8 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
     let mat: THREE.Material;
     let cast = true;
     if (key.startsWith('palm')) { geo = palmGeo(+key.slice(4)); mat = m.palmMat; }
+    else if (key.startsWith('jtree')) { geo = jungleTreeGeo(+key.slice(5)); mat = m.palmMat; }
+    else if (key.startsWith('spire')) { geo = spireGeo(+key.slice(5)); mat = getRockMaterial(); }
     else if (key.startsWith('fern')) { geo = fernGeo(+key.slice(4)); mat = m.foliageMat; cast = false; }
     else if (key.startsWith('leaf')) { geo = leafPlantGeo(+key.slice(4)); mat = m.foliageMat; cast = false; }
     else if (key.startsWith('flower')) { geo = flowerBushGeo(+key.slice(6)); mat = m.foliageMat; cast = false; }

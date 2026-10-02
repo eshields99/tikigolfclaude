@@ -420,7 +420,7 @@ export class UI {
     const diff = total - parTotal;
     sheet.insertAdjacentHTML(
       'beforeend',
-      `<div class="result-head"><div class="big" style="color:${data.titleColor === '#ffffff' ? 'var(--wood)' : data.titleColor};filter:drop-shadow(0 2px 0 rgba(0,0,0,.2))">${data.title}</div><div class="sub">${data.strokes} stroke${data.strokes === 1 ? '' : 's'} on a par ${par}</div></div>
+      `<div class="result-head"><div class="big${data.titleColor === '#ffffff' ? '' : ' outline'}" style="color:${data.titleColor === '#ffffff' ? 'var(--wood)' : data.titleColor}">${data.title}</div><div class="sub">${data.strokes} stroke${data.strokes === 1 ? '' : 's'} on a par ${par}</div></div>
        <div class="result-stars">${starsHtml(data.stars)}</div>
        <div class="reward"><div class="chip">${COIN}<span>+${data.coins}</span></div><div class="chip">Total ${total} <span style="opacity:.75">(${diff === 0 ? 'E' : diff > 0 ? '+' + diff : diff})</span></div></div>
        <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">HOLE</th><th>PAR</th><th>YOU</th></tr>${rows}</table>`,
