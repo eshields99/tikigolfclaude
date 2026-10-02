@@ -11,16 +11,36 @@ function hash2(i: number, j: number, seed: number) {
 }
 const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
+// Gradient tables per (period, seed): turns 4 hash + cos/sin evaluations per sample into lookups.
+const gradTables = new Map<number, Float32Array>();
+function gradTable(P: number, seed: number) {
+  const key = P * 100003 + seed;
+  let g = gradTables.get(key);
+  if (!g) {
+    g = new Float32Array(P * P * 2);
+    for (let j = 0; j < P; j++)
+      for (let i = 0; i < P; i++) {
+        const a = hash2(i, j, seed) * Math.PI * 2;
+        g[(j * P + i) * 2] = Math.cos(a);
+        g[(j * P + i) * 2 + 1] = Math.sin(a);
+      }
+    gradTables.set(key, g);
+  }
+  return g;
+}
+
 /** Periodic 2D gradient noise in [-1,1] with integer period P. */
 export function pnoise(x: number, y: number, P: number, seed = 0) {
+  const g = gradTable(P, seed);
   const xi = Math.floor(x), yi = Math.floor(y);
   const xf = x - xi, yf = y - yi;
-  const g = (i: number, j: number, dx: number, dy: number) => {
-    const a = hash2(((i % P) + P) % P, ((j % P) + P) % P, seed) * Math.PI * 2;
-    return Math.cos(a) * dx + Math.sin(a) * dy;
-  };
-  const n00 = g(xi, yi, xf, yf), n10 = g(xi + 1, yi, xf - 1, yf);
-  const n01 = g(xi, yi + 1, xf, yf - 1), n11 = g(xi + 1, yi + 1, xf - 1, yf - 1);
+  const i0 = ((xi % P) + P) % P, j0 = ((yi % P) + P) % P;
+  const i1 = i0 + 1 === P ? 0 : i0 + 1, j1 = j0 + 1 === P ? 0 : j0 + 1;
+  const a = (j0 * P + i0) * 2, b = (j0 * P + i1) * 2, c = (j1 * P + i0) * 2, d = (j1 * P + i1) * 2;
+  const n00 = g[a] * xf + g[a + 1] * yf;
+  const n10 = g[b] * (xf - 1) + g[b + 1] * yf;
+  const n01 = g[c] * xf + g[c + 1] * (yf - 1);
+  const n11 = g[d] * (xf - 1) + g[d + 1] * (yf - 1);
   const u = fade(xf), v = fade(yf);
   return 1.41 * ((n00 * (1 - u) + n10 * u) * (1 - v) + (n01 * (1 - u) + n11 * u) * v);
 }
@@ -37,8 +57,26 @@ export function pfbm(u: number, v: number, baseFreq: number, octaves: number, se
   return sum / norm;
 }
 
-/** Tileable Worley (cellular) noise F1 distance, u,v in [0,1). */
+// Feature points per (cells, seed) for tileable Worley noise.
+const worleyTables = new Map<number, Float32Array>();
+function worleyTable(cells: number, seed: number) {
+  const key = cells * 100003 + seed;
+  let t = worleyTables.get(key);
+  if (!t) {
+    t = new Float32Array(cells * cells * 2);
+    for (let j = 0; j < cells; j++)
+      for (let i = 0; i < cells; i++) {
+        t[(j * cells + i) * 2] = hash2(i, j, seed);
+        t[(j * cells + i) * 2 + 1] = hash2(i, j, seed + 7);
+      }
+    worleyTables.set(key, t);
+  }
+  return t;
+}
+
+/** Tileable Worley (cellular) noise: [F1, F2] distances, u,v in [0,1). */
 export function pworley(u: number, v: number, cells: number, seed = 0) {
+  const t = worleyTable(cells, seed);
   const x = u * cells, y = v * cells;
   const xi = Math.floor(x), yi = Math.floor(y);
   let best = 9, second = 9;
@@ -46,8 +84,9 @@ export function pworley(u: number, v: number, cells: number, seed = 0) {
     for (let i = -1; i <= 1; i++) {
       const ci = xi + i, cj = yi + j;
       const wi = ((ci % cells) + cells) % cells, wj = ((cj % cells) + cells) % cells;
-      const px = ci + hash2(wi, wj, seed), py = cj + hash2(wi, wj, seed + 7);
-      const d = Math.hypot(px - x, py - y);
+      const k = (wj * cells + wi) * 2;
+      const dx = ci + t[k] - x, dy = cj + t[k + 1] - y;
+      const d = Math.sqrt(dx * dx + dy * dy);
       if (d < best) { second = best; best = d; } else if (d < second) second = d;
     }
   return [best, second];
@@ -261,8 +300,13 @@ export function ballDimpleNormal(): THREE.DataTexture {
         const theta = Math.PI / 2 - lat;
         const phi = lon;
         const dx = -Math.cos(phi) * Math.sin(theta), dy = Math.cos(theta), dz = Math.sin(phi) * Math.sin(theta);
+        // Fibonacci points have y = 1 - 2i/(N-1): only a narrow band of indices can be within reach
         let best = 9, bc = cs[0];
-        for (const c of cs) {
+        const band = dimpleR * 1.6;
+        const i0 = Math.max(0, Math.floor(((1 - dy - band) * (N - 1)) / 2));
+        const i1 = Math.min(N - 1, Math.ceil(((1 - dy + band) * (N - 1)) / 2));
+        for (let ci = i0; ci <= i1; ci++) {
+          const c = cs[ci];
           const d = (c[0] - dx) ** 2 + (c[1] - dy) ** 2 + (c[2] - dz) ** 2;
           if (d < best) { best = d; bc = c; }
         }
