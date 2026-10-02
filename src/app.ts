@@ -328,8 +328,10 @@ export class App {
       me: g.human,
       hole: g.state === 'holed' ? (this.mode === 'rush' ? `${g.holedAt.toFixed(1)}s` : String(g.strokes)) : 'DNF',
       total: this.mode === 'rush' ? this.rushTimes[g.id] : this.totals[g.id],
+      time: this.rushTimes[g.id],
     }));
-    rows.sort((a, b) => a.total - b.total);
+    // strokes first; ties go to whoever holed out sooner overall
+    rows.sort((a, b) => a.total - b.total || a.time - b.time);
     if (last) {
       this.finishBattle(rows);
       return;
