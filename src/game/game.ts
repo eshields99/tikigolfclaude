@@ -72,7 +72,7 @@ export class Game {
     this.rig = new CameraRig(this.stage.camera);
     this.aim = new AimView();
     this.particles = this.stage.particles;
-    this.fx = new Effects(this.particles);
+    this.fx = new Effects(this.particles, this.stage.scene);
     this.stage.scene.add(this.aim.group);
     this.input = new Input(canvas, {
       canAim: () => !this.paused && !this.menuMode && !!this.session && this.session.canAim() && this.rig.introDone && !this.overviewOn,
@@ -277,7 +277,7 @@ export class Game {
         if (g.human && !ground && this.haptics && speed > 3) navigator.vibrate?.(8);
       },
       hazard: (g, kind, pos) => {
-        if (kind === 'water') this.fx.splash(pos);
+        if (kind === 'water') this.fx.splash(pos, pos.y);
         else if (kind === 'lava') this.fx.lava(pos);
         else this.fx.poof(pos);
         g.view.setVisible(false);
@@ -406,7 +406,7 @@ export class Game {
         this.closeBanner = null;
         this.ui.hint('Pull back & release|Drag anywhere · pull further for power');
       }
-      this.planner.update(waiting ? 8 : 4);
+      this.planner.update(waiting ? 8 : this.stage.renderer.quality === 'high' ? 4 : 2.5);
       s.update(dt);
       if (s.rules.timeLimit) this.ui.timer(s.timeLeft);
       const h = s.human;
@@ -473,6 +473,7 @@ export class Game {
       });
       audio.updateAmbience(dtReal, 999, 999);
     }
+    this.fx.update(dt);
     this.stage.update(dt, s ? s.simTime : this.stage.time);
     void this.shake;
   }

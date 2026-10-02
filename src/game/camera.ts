@@ -211,8 +211,9 @@ export class CameraRig {
         this.yaw += dt * 0.32;
         yaw = this.yaw;
         tgt.copy(c.cup);
-        pitch = 0.42;
-        dist = 5.2;
+        tgt.y += 0.4;
+        pitch = 0.5;
+        dist = 7.2;
         lambda = 2.2;
         break;
       }

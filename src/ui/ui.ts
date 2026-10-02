@@ -540,9 +540,20 @@ export class UI {
       return row;
     };
     const reset = el('div', 'setting', `<div class="lbl">${ICON.restart}<span>Progress</span></div>`);
-    reset.append(this.button('RESET', 'pink small', () => {
-      if (confirm('Reset all progress, coins and balls?')) onReset();
-    }));
+    let armed = false;
+    const rb = this.button('RESET', 'pink small', () => {
+      if (!armed) {
+        armed = true;
+        (rb.querySelector('span') as HTMLElement).textContent = 'TAP AGAIN';
+        setTimeout(() => {
+          armed = false;
+          (rb.querySelector('span') as HTMLElement).textContent = 'RESET';
+        }, 3000);
+        return;
+      }
+      onReset();
+    });
+    reset.append(rb);
     body.append(slider('Music', ICON.music, 'music'), slider('Sound FX', ICON.sound, 'sfx'), gfx, toggle('Vibration', ICON.bolt, 'haptics'), toggle('Aim guide', ICON.target, 'guide'), reset);
     sheet.append(close, body);
     back.append(sheet);

@@ -32,7 +32,7 @@ const mats = () => {
   return { foliageMat, palmMat, propMat };
 };
 
-export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPreset, theme: Theme): DecorBuild {
+export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPreset, theme: Theme, detail = 1, exclude: { f(x: number, z: number): number }[] = []): DecorBuild {
   const group = new THREE.Group();
   const rng = new Rng(hashString(hole.def.id + 'decor'));
   const insts: Inst[] = [];
@@ -141,6 +141,9 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
       const x = cx + gx + rng.range(-0.5, 0.5), z = cz + gz + rng.range(-0.5, 0.5);
       const cd = fp.f(x, z);
       if (cd < 0.75) continue;
+      let excluded = false;
+      for (const e of exclude) if (e.f(x, z) < 1.2) { excluded = true; break; }
+      if (excluded) continue;
       const y = island.heightAt(x, z);
       const ld = island.landSDF(x, z);
       const distFromCenter = Math.hypot(x - cx, z - cz);
@@ -168,7 +171,7 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
       if (inland < 1.2 && cd > 2) continue; // keep beaches open
       // plants hugging the walls
       const nearWall = cd < 2.4;
-      const chance = (nearWall ? 0.55 : 0.2) * density;
+      const chance = (nearWall ? 0.55 : 0.2) * density * detail;
       if (rng.next() > chance) continue;
       const r2 = rng.next();
       if (theme === 'volcano' && r2 < 0.25) {

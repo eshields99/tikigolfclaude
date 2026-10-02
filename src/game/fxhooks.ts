@@ -2,8 +2,38 @@
 import * as THREE from 'three';
 import type { Particles } from '../render/particles';
 
+interface Ripple { mesh: THREE.Mesh; age: number; life: number; size: number }
+
 export class Effects {
-  constructor(private p: Particles) {}
+  private ripples: Ripple[] = [];
+  private ringGeo = new THREE.RingGeometry(0.82, 1, 48);
+  constructor(private p: Particles, private scene: THREE.Object3D) {
+    this.ringGeo.rotateX(-Math.PI / 2);
+  }
+
+  ripple(pos: THREE.Vector3, size: number, color = 0xffffff, life = 1.3) {
+    const m = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false }));
+    m.position.copy(pos);
+    m.renderOrder = 9;
+    this.scene.add(m);
+    this.ripples.push({ mesh: m, age: 0, life, size });
+  }
+
+  update(dt: number) {
+    this.ripples = this.ripples.filter((r) => {
+      r.age += dt;
+      const t = r.age / r.life;
+      if (t >= 1) {
+        this.scene.remove(r.mesh);
+        (r.mesh.material as THREE.Material).dispose();
+        return false;
+      }
+      const s = 0.2 + (1 - Math.pow(1 - t, 2.2)) * r.size;
+      r.mesh.scale.set(s, 1, s);
+      (r.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - t) * 0.85;
+      return true;
+    });
+  }
 
   hit(pos: THREE.Vector3, power: number, color: number) {
     this.p.emit({ count: 8 + Math.round(power * 14), pos, spread: 0.08, velSpread: 1.2 + power * 2.5, up: 1.2, life: [0.25, 0.55], size: [0.05, 0.11], colors: [0xffffff, color], gravity: 6, drag: 3, shape: 2, additive: true });
@@ -19,13 +49,17 @@ export class Effects {
     this.p.emit({ count: 14, pos, spread: 0.15, velSpread: 1.2, up: 1.6, life: [0.5, 1.0], size: [0.12, 0.28], grow: 2.2, colors: [0xf3dba2, 0xe8c98a], gravity: 3, drag: 3, alpha: 0.8 });
   }
 
-  splash(pos: THREE.Vector3) {
-    const p = pos.clone().setY(0.05);
-    this.p.emit({ count: 34, pos: p, spread: 0.15, velSpread: 1.4, up: 4.5, life: [0.5, 1.0], size: [0.07, 0.16], colors: [0xffffff, 0xd9fbff, 0x9fe8ef], gravity: 14, drag: 0.6 });
-    this.p.emit({ count: 10, pos: p, spread: 0.4, velSpread: 0.5, up: 0.4, life: [0.6, 1.1], size: [0.35, 0.6], grow: 2.4, colors: [0xffffff], gravity: 0, drag: 2, alpha: 0.55 });
+  splash(pos: THREE.Vector3, y = 0.05) {
+    const p = pos.clone().setY(y);
+    this.p.emit({ count: 46, pos: p, spread: 0.12, velSpread: 1.6, up: 6.5, life: [0.6, 1.2], size: [0.08, 0.2], colors: [0xffffff, 0xe6fdff, 0xaaf0f2], gravity: 15, drag: 0.5 });
+    this.p.emit({ count: 14, pos: p, spread: 0.06, velSpread: 0.4, up: 8.5, life: [0.35, 0.6], size: [0.1, 0.18], colors: [0xffffff], gravity: 16, drag: 0.4, shape: 2 });
+    this.p.emit({ count: 12, pos: p, spread: 0.45, velSpread: 0.6, up: 0.6, life: [0.7, 1.3], size: [0.45, 0.8], grow: 2.6, colors: [0xffffff], gravity: 0, drag: 2, alpha: 0.5 });
+    this.ripple(p.clone().setY(y + 0.04), 2.2, 0xffffff, 1.4);
+    setTimeout(() => this.ripple(p.clone().setY(y + 0.04), 1.4, 0xe6fdff, 1.2), 220);
   }
 
   lava(pos: THREE.Vector3) {
+    this.ripple(pos.clone().setY(pos.y + 0.06), 1.6, 0xffa040, 1.0);
     this.p.emit({ count: 30, pos, spread: 0.12, velSpread: 1.5, up: 4, life: [0.5, 1.2], size: [0.05, 0.12], colors: [0xffd04a, 0xff7a1a, 0xff3a0a], gravity: 10, drag: 0.8, shape: 2, additive: true });
     this.p.emit({ count: 12, pos, spread: 0.3, velSpread: 0.4, up: 1.5, life: [1.0, 1.8], size: [0.4, 0.8], grow: 2.5, colors: [0x3a3030, 0x5a4a44], gravity: -1.5, drag: 1.5, alpha: 0.6 });
   }

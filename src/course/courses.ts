@@ -32,7 +32,7 @@ export const COURSES: CourseInfo[] = [
     env: 'sunset',
     theme: 'volcano',
     color: '#ff7a3a',
-    style: { turfA: 0x5cbf33, turfB: 0x47a52a, stone: 0x4d4644, plinth: 0x3f3634, sand: 0x7a685c, wood: 0x7a4a2a, flag: 0xe0242c },
+    style: { turfA: 0x6ccd3a, turfB: 0x55b62e, stone: 0x544c49, plinth: 0x433a37, sand: 0x7a685c, wood: 0x7a4a2a, flag: 0xe0242c },
     holes: volcanoPeak,
     backdrop: { volcano: { at: [-60, -190], height: 105, radius: 120 } },
   },

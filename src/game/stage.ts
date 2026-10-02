@@ -13,6 +13,7 @@ import { Particles } from '../render/particles';
 import { makeLiquid } from '../world/liquids';
 import { Waterfall } from '../world/waterfall';
 import { Volcano } from '../world/volcano';
+import { Critters } from '../world/critters';
 
 export interface Backdrop {
   volcano?: { at: [number, number]; height: number; radius: number; lava?: number };
@@ -40,6 +41,7 @@ export class Stage {
   liquids: { dispose(): void }[] = [];
   waterfalls: Waterfall[] = [];
   volcano: Volcano | null = null;
+  critters: Critters | null = null;
   private backdropKey = '';
 
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
@@ -115,7 +117,9 @@ export class Stage {
     const hole = buildHole(def, style);
     const island = buildIsland(hole, this.preset, { volcanic: theme === 'volcano' });
     const ocean = makeOcean(this.preset, island);
-    const decor = buildDecor(hole, island, this.preset, theme);
+    const detail = this.renderer.quality === 'low' ? 0.5 : this.renderer.quality === 'medium' ? 0.8 : 1;
+    const exclude = [...(def.lava ?? []), ...(def.pools ?? [])].map((l) => l.shape);
+    const decor = buildDecor(hole, island, this.preset, theme, detail, exclude);
     hole.world.terrainHeight = (x, z) => island.heightAt(x, z);
     this.holeGroup.add(hole.group, island.group, ocean.mesh, decor.group);
     for (const lv of def.lava ?? []) {
@@ -138,6 +142,8 @@ export class Stage {
     this.ocean = ocean;
     this.decor = decor;
     this.torchLights = new TorchLights(Math.min(4, decor.torchPositions.length), decor.torchPositions, this.preset.torchBoost);
+    this.critters = new Critters(this.particles, theme, hole.cup.clone());
+    this.holeGroup.add(this.critters.group);
     this.holeGroup.add(this.torchLights.group);
     this.lights.fit(hole.bounds);
     return hole;
@@ -152,6 +158,8 @@ export class Stage {
     this.decor?.dispose();
     for (const l of this.liquids) l.dispose();
     for (const w of this.waterfalls) w.dispose();
+    this.critters?.dispose();
+    this.critters = null;
     this.liquids = [];
     this.waterfalls = [];
     this.particles.clear();
@@ -175,6 +183,7 @@ export class Stage {
     this.clouds?.update(this.time);
     this.torchLights?.update(this.focus, dt);
     for (const w of this.waterfalls) w.update(dt);
+    this.critters?.update(dt, this.focus);
     this.volcano?.update(dt, this.camera);
     this.particles.update(dt, this.camera);
   }

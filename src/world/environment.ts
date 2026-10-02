@@ -61,17 +61,17 @@ export const PRESETS: Record<string, EnvPreset> = {
   },
   golden: {
     id: 'golden',
-    sunDir: dir(-20, 24),
-    sunColor: C(0xffd59a),
+    sunDir: dir(-25, 21),
+    sunColor: C(0xffc483),
     sunIntensity: 3.9,
-    skyTop: C(0x2f78cc),
-    skyHorizon: C(0xffd9a8),
-    skyBottom: C(0x88c9cf),
-    sunGlow: C(0xffc070),
-    hemiSky: C(0xc9dcff),
+    skyTop: C(0x3a7ccc),
+    skyHorizon: C(0xffc996),
+    skyBottom: C(0x7fbcc4),
+    sunGlow: C(0xffb060),
+    hemiSky: C(0xd2d4f5),
     hemiGround: C(0x6a7a3a),
-    hemiIntensity: 0.8,
-    fog: C(0xf2d6b0),
+    hemiIntensity: 0.9,
+    fog: C(0xf0c9a0),
     fogNear: 200,
     fogFar: 1000,
     waterShallow: C(0x40dccc),
@@ -85,16 +85,16 @@ export const PRESETS: Record<string, EnvPreset> = {
   },
   sunset: {
     id: 'sunset',
-    sunDir: dir(-10, 9),
-    sunColor: C(0xffa25a),
-    sunIntensity: 3.4,
+    sunDir: dir(-14, 15),
+    sunColor: C(0xffb072),
+    sunIntensity: 3.7,
     skyTop: C(0x3a3f8f),
     skyHorizon: C(0xff9a62),
     skyBottom: C(0x7a5a8a),
     sunGlow: C(0xff7a3a),
-    hemiSky: C(0x9d8fd6),
-    hemiGround: C(0x5a3a2a),
-    hemiIntensity: 0.85,
+    hemiSky: C(0xb8a8ee),
+    hemiGround: C(0x5f6a3a),
+    hemiIntensity: 1.3,
     fog: C(0xe8907a),
     fogNear: 180,
     fogFar: 900,
@@ -200,12 +200,12 @@ export function makeClouds(p: EnvPreset, seed = 3) {
         #include <colorspace_fragment>
       }`,
   });
-  const sphere = new THREE.IcosahedronGeometry(1, 3);
+  const sphere = new THREE.IcosahedronGeometry(1, 2);
   const geos: THREE.BufferGeometry[] = [];
   const nClouds = 16;
   for (let c = 0; c < nClouds; c++) {
     const parts: THREE.BufferGeometry[] = [];
-    const n = rng.int(6, 11);
+    const n = rng.int(5, 8);
     const w = rng.range(30, 70);
     for (let i = 0; i < n; i++) {
       const g = sphere.clone();

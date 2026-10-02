@@ -38,9 +38,15 @@ export class Ball {
     this.holed = false;
     this.inCupZone = false;
     this.grounded = true;
+    this.gnx = 0; this.gny = 1; this.gnz = 0;
+    this.gmat = 0;
+    this.gvx = this.gvy = this.gvz = 0;
     this.restTime = 0;
     this.moveTime = 0;
     this.airTime = 0;
+    this.boostCooldown = 0;
+    this.teleCooldown = 0;
+    this.lastBoost = -1;
   }
 
   launch(dx: number, dz: number, speed: number) {

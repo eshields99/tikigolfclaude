@@ -38,18 +38,17 @@ export function makeLiquid(region: SDF, y: number, kind: 'water' | 'lava', flow:
         uniform float uTime; uniform vec2 uFlow; varying float vEdge; varying vec3 vW;
         ${NOISE}
         void main(){
-          vec2 p = vW.xz * 0.55 - uFlow * uTime * 0.35;
-          vec2 warp = vec2(fb(p * 0.7 + uTime * 0.05), fb(p * 0.7 - uTime * 0.04 + 7.0));
-          vec2 v = voro(p * 1.3 + warp * 1.6);
-          float crack = smoothstep(0.02, 0.22, v.y - v.x);      // 0 at cell borders (glowing cracks)
-          float heat = fb(p * 1.7 + uTime * 0.12);
-          vec3 hot = mix(vec3(1.0, 0.32, 0.03), vec3(1.0, 0.75, 0.2), heat);
-          vec3 crust = mix(vec3(0.09, 0.05, 0.05), vec3(0.32, 0.12, 0.06), heat * 0.6);
-          float crustAmt = crack * smoothstep(0.18, 0.55, fb(p * 0.6 - uTime * 0.03 + 3.0));
-          vec3 col = mix(hot * (1.05 + heat * 0.55), crust, crustAmt * 0.92);
-          col += hot * (1.0 - crack) * 0.9; // glowing cracks
-          // brighter rim where lava meets rock
-          col += vec3(1.0, 0.4, 0.06) * (1.0 - smoothstep(0.0, 0.5, vEdge)) * 0.6;
+          vec2 p = vW.xz * 0.42 - uFlow * uTime * 0.22;
+          vec2 warp = vec2(fb(p * 0.6 + uTime * 0.04), fb(p * 0.6 - uTime * 0.05 + 7.0));
+          vec2 v = voro(p * 1.05 + warp * 1.5);
+          float border = 1.0 - smoothstep(0.0, 0.13, v.y - v.x);
+          float heat = fb(p * 1.3 - uTime * 0.15);
+          float plate = smoothstep(0.3, 0.5, fb(p * 0.45 + 3.0 + uTime * 0.02));
+          vec3 molten = mix(vec3(0.75, 0.09, 0.01), vec3(1.0, 0.42, 0.03), heat);
+          vec3 crust = vec3(0.075, 0.04, 0.035) + vec3(0.18, 0.04, 0.0) * heat * 0.4;
+          vec3 col = mix(molten * (1.0 + heat * 0.5), crust, plate * (1.0 - border * 0.95));
+          col += vec3(1.0, 0.5, 0.1) * border * plate * 1.35;
+          col += vec3(1.0, 0.28, 0.04) * (1.0 - smoothstep(0.0, 0.8, vEdge)) * 0.45;
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

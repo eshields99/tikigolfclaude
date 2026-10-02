@@ -24,6 +24,8 @@ const SEABED = new THREE.Color(0xd9c690);
 const JUNGLE = new THREE.Color(0x4f9a3a);
 const JUNGLE_DARK = new THREE.Color(0x2f6e2c);
 const ROCK = new THREE.Color(0x5f5a58);
+const VOLC_SAND = new THREE.Color(0x6e625c);
+const VOLC_WET = new THREE.Color(0x4a403c);
 
 export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcanic?: boolean } = {}): IslandBuild {
   const def = hole.def.island ?? {};
@@ -39,7 +41,7 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
 
   const cx = (fp.b[0] + fp.b[2]) / 2, cz = (fp.b[1] + fp.b[3]) / 2;
   const half = Math.max(fp.b[2] - fp.b[0], fp.b[3] - fp.b[1]) / 2 + 60;
-  const N = Math.min(220, Math.ceil((half * 2) / 1.0));
+  const N = Math.min(150, Math.ceil((half * 2) / 1.2));
   const cell = (half * 2) / N;
 
   const landExact = (x: number, z: number) => {
@@ -133,11 +135,12 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
     const n1 = noise.noise2(x * 0.15, z * 0.15);
     const beach = smoothstep(-3.2 + n1 * 0.8, -1.4 + n1 * 0.6, d) * (1 - smoothstep(0.9, 1.6, y));
     if (y < -0.02) {
-      c.copy(SEABED).lerp(WET_SAND, smoothstep(0, -1.5, y) * 0.5);
+      c.copy(opts.volcanic ? VOLC_WET : SEABED).lerp(opts.volcanic ? VOLC_SAND : WET_SAND, smoothstep(0, -1.5, y) * 0.5);
     } else {
       const jungle = JUNGLE.clone().lerp(JUNGLE_DARK, smoothstep(-0.3, 0.6, noise.fbm2(x * 0.08, z * 0.08, 3)));
-      if (opts.volcanic) jungle.lerp(new THREE.Color(0x4a5a2c), 0.35);
-      c.copy(jungle).lerp(y < 0.12 ? WET_SAND : SAND, beach);
+      if (opts.volcanic) jungle.lerp(new THREE.Color(0x4f5a2e), 0.45);
+      const sand = opts.volcanic ? (y < 0.12 ? VOLC_WET : VOLC_SAND) : y < 0.12 ? WET_SAND : SAND;
+      c.copy(jungle).lerp(sand, beach);
     }
     const steep = 1 - smoothstep(0.62, 0.82, ny);
     c.lerp(opts.volcanic ? new THREE.Color(0x3d3a3a) : ROCK, steep * (y > 0 ? 1 : 0.4));

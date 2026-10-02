@@ -19,7 +19,7 @@ export function stoneBlockGeos(): THREE.BufferGeometry[] {
   return memo('stoneBlocks', () => {
     const out: THREE.BufferGeometry[] = [];
     for (let v = 0; v < 5; v++) {
-      const g = new RoundedBoxGeometry(1, 1, 1, 3, 0.16);
+      const g = new RoundedBoxGeometry(1, 1, 1, 2, 0.16);
       const p = g.getAttribute('position') as THREE.BufferAttribute;
       const seed = v * 13.7;
       for (let i = 0; i < p.count; i++) {
@@ -103,13 +103,13 @@ export function palmGeo(seed: number): THREE.BufferGeometry {
       return { p, tan, side, fwd };
     };
     const radiusAt = (t: number) => 0.3 * (1 - t) + 0.17 * t + Math.max(0, 0.12 - t) * 1.4;
-    const ringCol = (k: number) => jitterColor(k % 2 ? 0x8f6a45 : 0x9c7650, () => rng.next(), 0.02, 0.05, 0.08);
+    const ringCol = (k: number) => jitterColor(k % 2 ? 0x977149 : 0x9c7650, () => rng.next(), 0.015, 0.04, 0.05);
     for (let k = 0; k < rings; k++) {
       const t0 = k / rings, t1 = (k + 1) / rings;
       const f0 = frame(t0), f1 = frame(t1 - 0.002);
       const r0 = radiusAt(t0) * 0.86, r1 = radiusAt(t1) * 1.06;
-      const cBot = ringCol(k).multiplyScalar(0.62);
-      const cTop = ringCol(k).multiplyScalar(1.05);
+      const cBot = ringCol(k).multiplyScalar(0.74);
+      const cTop = ringCol(k).multiplyScalar(1.04);
       const ring0: THREE.Vector3[] = [], ring1: THREE.Vector3[] = [], n0: THREE.Vector3[] = [], n1: THREE.Vector3[] = [];
       for (let i = 0; i <= radial; i++) {
         const a = (i / radial) * Math.PI * 2;

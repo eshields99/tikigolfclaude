@@ -68,12 +68,12 @@ export const magmaJump: HoleDef = {
   name: 'Magma Jump',
   par: 3,
   tee: [0, 13],
-  cup: [0, -10.6],
+  cup: [-1.9, -11.6],
   tip: 'Full power off the ramp clears the magma!',
   route: [
     [0, 13],
     [0, 4],
-    [0, -10.6],
+    [-1.9, -11.6],
   ],
   pieces: [
     {

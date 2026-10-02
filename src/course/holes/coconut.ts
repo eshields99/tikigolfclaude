@@ -108,12 +108,12 @@ export const lagoonLeap: HoleDef = {
   name: 'Lagoon Leap',
   par: 3,
   tee: [0, 12.6],
-  cup: [0, -9],
+  cup: [2.1, -10.6],
   tip: 'Brave the ramp for glory, or take the bridge.',
   route: [
     [0, 12.6],
     [0, 3],
-    [0, -9],
+    [2.1, -10.6],
   ],
   pieces: [
     {

@@ -83,7 +83,7 @@ export class Flag {
 
   update(dt: number) {
     this.lift += (this.liftTarget - this.lift) * Math.min(1, dt * 4);
-    this.group.position.y = this.baseY + this.lift * 1.2;
+    this.group.position.y = this.baseY + this.lift * 0.75;
     this.fade += (this.fadeTarget - this.fade) * Math.min(1, dt * 6);
     for (const m of this.mats) {
       m.opacity = this.fade;
