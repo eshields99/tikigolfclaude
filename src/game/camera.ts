@@ -123,6 +123,8 @@ export class CameraRig {
 
   beginShot(aimYaw: number) {
     this.shotYaw = aimYaw;
+    // any manual rotation was only for lining up the putt; follow from behind the ball
+    this.userYaw = 0;
     this.mode = 'follow';
   }
 
