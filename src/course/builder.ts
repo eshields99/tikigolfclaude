@@ -11,7 +11,7 @@ import { Rng, noise, hashString, type P2 } from '../core/math';
 import { makeTurfMaterial, makeStoneMaterial, makeSandMaterial, makeWoodMaterial } from '../render/materials';
 import { stoneBlockGeos } from '../world/props';
 import { Flag } from './flag';
-import { buildObstacles, type ObstacleContext } from './obstacles';
+import { buildObstacles, type ObstacleContext, type BumperFx } from './obstacles';
 
 export const CUP_R = 0.42;
 export const CUP_DEPTH = 0.55;
@@ -45,6 +45,7 @@ export interface HoleBuild {
   aoCircles: [number, number, number][];
   /** Candidate spots on top of stone walls (for torches etc.), with outward normal. */
   wallPosts: { x: number; y: number; z: number; nx: number; nz: number }[];
+  bumpers: BumperFx[];
   dispose(): void;
 }
 
@@ -396,7 +397,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     for (const pc of pieces) if (pc.def.shape.f(x, z) < 0.3) best = Math.max(best, pc.h(x, z));
     return best === -Infinity ? 0 : best;
   };
-  buildObstacles(octx);
+  const bumpers = buildObstacles(octx);
 
   // ---------------------------------------------------------------- stones (instanced)
   const stoneGeos = stoneBlockGeos();
@@ -492,6 +493,8 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
   world.static = staticMesh;
   world.cup = { x: cupPos.x, y: cupY, z: cupPos.z, r: CUP_R, depth: CUP_DEPTH };
   for (const hz of def.hazards ?? []) world.hazards.push({ sdf: hz.shape.f, y: hz.y, kind: hz.kind });
+  for (const lv of def.lava ?? []) world.hazards.push({ sdf: lv.shape.f, y: lv.y + 0.05, kind: 'lava' });
+  for (const pl of def.pools ?? []) world.hazards.push({ sdf: pl.shape.f, y: pl.y - 0.05, kind: 'water' });
   world.waterY = 0;
   world.killY = -4;
 
@@ -518,6 +521,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     updaters,
     aoCircles,
     wallPosts,
+    bumpers,
     dispose() {
       group.traverse((o) => {
         const m = o as THREE.Mesh;

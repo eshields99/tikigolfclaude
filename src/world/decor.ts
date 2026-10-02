@@ -48,9 +48,11 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
   };
   const occupy = (x: number, z: number, r: number) => occupied.push([x, z, r]);
   const groundY = (x: number, z: number) => {
-    const s = hole.surfaceY(x, z);
+    // course turf if inside a piece, otherwise the island terrain (never wall tops)
+    let best = -Infinity;
+    for (const pc of hole.pieces) if (pc.shape.f(x, z) < -0.05) best = Math.max(best, pc.h(x, z));
     const t = island.heightAt(x, z);
-    return Math.max(s === -Infinity ? -99 : s, t);
+    return best === -Infinity ? t : Math.max(best, t);
   };
   const q = new THREE.Quaternion();
   const add = (key: string, x: number, y: number, z: number, rot: number, s: number | THREE.Vector3, c?: THREE.Color) => {

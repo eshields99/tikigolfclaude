@@ -36,7 +36,7 @@ export type ObstacleDef =
   | { type: 'ramp'; at: V2; dir: number; len: number; width: number; height: number; kicker?: boolean }
   | { type: 'spinner'; at: V2; len: number; speed: number; phase?: number; arms?: number }
   | { type: 'slider'; from: V2; to: V2; size: V2; height?: number; period: number; phase?: number }
-  | { type: 'palmIsland'; at: V2; r: number };
+  | { type: 'planter'; at: V2; r: number; palm?: boolean };
 
 export type DecorDef =
   | { type: 'palm'; at: V2; rot?: number; scale?: number; lean?: number; y?: number }
@@ -46,7 +46,6 @@ export type DecorDef =
   | { type: 'rock'; at: V2; r: number; seed?: number; y?: number; h?: number }
   | { type: 'fern'; at: V2; scale?: number; y?: number }
   | { type: 'flowers'; at: V2; scale?: number; y?: number }
-  | { type: 'waterfall'; top: V3; bottom: V3; width: number; dir: number }
   | { type: 'boat'; at: V2; rot?: number }
   | { type: 'dock'; from: V2; to: V2; width?: number; y?: number };
 
@@ -63,6 +62,14 @@ export interface IslandDef {
   /** Extra hills/cliffs: [x, z, radius, height]. */
   mounds?: [number, number, number, number][];
   jungle?: number; // 0..1 vegetation density
+  /** Lower the terrain inside these regions to at most y (for lava pits / pools). */
+  carve?: { shape: SDF; y: number }[];
+}
+
+export interface LiquidDef {
+  shape: SDF;
+  y: number;
+  flow?: V2;
 }
 
 export interface HoleDef {
@@ -75,6 +82,9 @@ export interface HoleDef {
   obstacles?: ObstacleDef[];
   decor?: DecorDef[];
   hazards?: { kind: 'water' | 'lava'; shape: SDF; y: number }[];
+  lava?: LiquidDef[];
+  pools?: LiquidDef[];
+  waterfalls?: { top: V3; bottom: V3; width: number; dir: number }[];
   island?: IslandDef;
   /** Initial camera look direction override (radians, 0 = toward -Z). */
   aimYaw?: number;

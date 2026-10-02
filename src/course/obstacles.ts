@@ -305,8 +305,26 @@ export function buildObstacles(ctx: ObstacleContext) {
         bg.dispose();
         break;
       }
-      case 'palmIsland':
+      case 'planter': {
+        const [x, z] = o.at;
+        const y = heightAt(x + o.r + 0.6, z);
+        const gb = new GeoBuilder();
+        gb.add(new THREE.CylinderGeometry(o.r + 0.05, o.r + 0.05, 0.6, 32), M.compose(0, -0.2, 0), 0x4a3524);
+        gb.add(new THREE.SphereGeometry(o.r, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.compose(0, 0.08, 0, 0, 0, 0, 1, 0.18, 1), 0x3f7a2a);
+        const mesh = new THREE.Mesh(gb.build(), getTikiMaterial());
+        mesh.position.set(x, y, z);
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        if (!ctx.def.decor) ctx.def.decor = [];
+        if (o.palm !== false && !ctx.def.decor.some((d) => d.type === 'palm' && d.at[0] === x && d.at[1] === z)) ctx.def.decor.push({ type: 'palm', at: [x, z], y: y + 0.1, scale: 0.85 });
+        const n = Math.max(3, Math.round(o.r * 3));
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2 + 0.3;
+          const fx = x + Math.cos(a) * o.r * 0.62, fz = z + Math.sin(a) * o.r * 0.62;
+          if (!ctx.def.decor.some((d) => 'at' in d && d.at[0] === fx && d.at[1] === fz)) ctx.def.decor.push({ type: k % 2 ? 'flowers' : 'fern', at: [fx, fz], y: y + 0.1, scale: 0.7 });
+        }
         break;
+      }
     }
   }
   return bumpers;

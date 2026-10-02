@@ -9,6 +9,14 @@ import { makeOcean } from '../world/ocean';
 import { buildDecor, type DecorBuild, type Theme } from '../world/decor';
 import { TorchLights } from '../render/fx';
 import { sharedUniforms } from '../render/materials';
+import { Particles } from '../render/particles';
+import { makeLiquid } from '../world/liquids';
+import { Waterfall } from '../world/waterfall';
+import { Volcano } from '../world/volcano';
+
+export interface Backdrop {
+  volcano?: { at: [number, number]; height: number; radius: number; lava?: number };
+}
 
 export class Stage {
   renderer: Renderer;
@@ -28,9 +36,15 @@ export class Stage {
   holeGroup = new THREE.Group();
   focus = new THREE.Vector3();
   time = 0;
+  particles = new Particles();
+  liquids: { dispose(): void }[] = [];
+  waterfalls: Waterfall[] = [];
+  volcano: Volcano | null = null;
+  private backdropKey = '';
 
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
     this.renderer = new Renderer(canvas, quality);
+    this.scene.add(this.particles.mesh, this.particles.meshAdd);
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
     this.lights = new LightRig(this.preset, quality === 'low' ? 1024 : 2048);
     this.scene.add(this.lights.group);
@@ -80,6 +94,22 @@ export class Stage {
     pm.dispose();
   }
 
+  setBackdrop(b: Backdrop | undefined) {
+    const key = JSON.stringify(b ?? {});
+    if (key === this.backdropKey) return;
+    this.backdropKey = key;
+    if (this.volcano) {
+      this.scene.remove(this.volcano.group);
+      this.volcano.dispose();
+      this.volcano = null;
+    }
+    if (b?.volcano) {
+      const v = b.volcano;
+      this.volcano = new Volcano(new THREE.Vector3(v.at[0], -2, v.at[1]), v.height, v.radius, this.particles, v.lava ?? 1);
+      this.scene.add(this.volcano.group);
+    }
+  }
+
   loadHole(def: HoleDef, style: CourseStyle, theme: Theme) {
     this.unloadHole();
     const hole = buildHole(def, style);
@@ -88,6 +118,21 @@ export class Stage {
     const decor = buildDecor(hole, island, this.preset, theme);
     hole.world.terrainHeight = (x, z) => island.heightAt(x, z);
     this.holeGroup.add(hole.group, island.group, ocean.mesh, decor.group);
+    for (const lv of def.lava ?? []) {
+      const l = makeLiquid(lv.shape, lv.y, 'lava', lv.flow);
+      this.holeGroup.add(l.mesh);
+      this.liquids.push(l);
+    }
+    for (const pl of def.pools ?? []) {
+      const l = makeLiquid(pl.shape, pl.y, 'water', pl.flow);
+      this.holeGroup.add(l.mesh);
+      this.liquids.push(l);
+    }
+    for (const wf of def.waterfalls ?? []) {
+      const w = new Waterfall(new THREE.Vector3(...wf.top), new THREE.Vector3(...wf.bottom), wf.width, wf.dir, this.particles);
+      this.holeGroup.add(w.group);
+      this.waterfalls.push(w);
+    }
     this.hole = hole;
     this.island = island;
     this.ocean = ocean;
@@ -105,6 +150,11 @@ export class Stage {
     this.island?.dispose();
     this.ocean?.dispose();
     this.decor?.dispose();
+    for (const l of this.liquids) l.dispose();
+    for (const w of this.waterfalls) w.dispose();
+    this.liquids = [];
+    this.waterfalls = [];
+    this.particles.clear();
     this.hole = null;
     this.island = null;
     this.ocean = null;
@@ -124,6 +174,9 @@ export class Stage {
     if (this.hole) for (const u of this.hole.updaters) u(simTime, dt);
     this.clouds?.update(this.time);
     this.torchLights?.update(this.focus, dt);
+    for (const w of this.waterfalls) w.update(dt);
+    this.volcano?.update(dt, this.camera);
+    this.particles.update(dt, this.camera);
   }
 
   render(dt: number) {

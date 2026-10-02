@@ -35,6 +35,7 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
   const extraLand = def.land ?? [];
   const water = def.water ?? [];
   const pieces = hole.pieces;
+  const carves = def.carve ?? [];
 
   const cx = (fp.b[0] + fp.b[2]) / 2, cz = (fp.b[1] + fp.b[3]) / 2;
   const half = Math.max(fp.b[2] - fp.b[0], fp.b[3] - fp.b[1]) / 2 + 60;
@@ -71,6 +72,13 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
     for (const [mx, mz, mr, mh] of mounds) {
       const t = Math.hypot(x - mx, z - mz) / mr;
       if (t < 1.4) h += mh * Math.exp(-t * t * 2.2) * (1 + noise.noise2(x * 0.2, z * 0.2) * 0.12);
+    }
+    for (const cv of carves) {
+      const sd = cv.shape.f(x, z);
+      if (sd < 1.5) {
+        const k = smoothstep(1.5, -0.5, sd);
+        h = h * (1 - k) + Math.min(h, cv.y) * k;
+      }
     }
     // keep terrain under the course
     for (const pc of pieces) {
