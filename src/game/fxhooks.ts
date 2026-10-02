@@ -1,0 +1,54 @@
+// Visual effect bursts used by the game (splashes, sand puffs, confetti, sparks...).
+import * as THREE from 'three';
+import type { Particles } from '../render/particles';
+
+export class Effects {
+  constructor(private p: Particles) {}
+
+  hit(pos: THREE.Vector3, power: number, color: number) {
+    this.p.emit({ count: 8 + Math.round(power * 14), pos, spread: 0.08, velSpread: 1.2 + power * 2.5, up: 1.2, life: [0.25, 0.55], size: [0.05, 0.11], colors: [0xffffff, color], gravity: 6, drag: 3, shape: 2, additive: true });
+    this.p.emit({ count: 4, pos: pos.clone().setY(pos.y - 0.15), spread: 0.15, velSpread: 0.6, up: 0.5, life: [0.4, 0.7], size: [0.15, 0.3], grow: 2, colors: [0x8fd45a, 0x6cbf3a], gravity: 2, drag: 4, alpha: 0.6 });
+  }
+
+  wallHit(pos: THREE.Vector3, speed: number) {
+    if (speed < 2.5) return;
+    this.p.emit({ count: Math.min(14, Math.round(speed * 1.2)), pos, spread: 0.05, velSpread: 1.5 + speed * 0.15, life: [0.15, 0.35], size: [0.03, 0.07], colors: [0xfff4c2, 0xffffff], gravity: 4, drag: 4, shape: 2, additive: true });
+  }
+
+  sandPuff(pos: THREE.Vector3) {
+    this.p.emit({ count: 14, pos, spread: 0.15, velSpread: 1.2, up: 1.6, life: [0.5, 1.0], size: [0.12, 0.28], grow: 2.2, colors: [0xf3dba2, 0xe8c98a], gravity: 3, drag: 3, alpha: 0.8 });
+  }
+
+  splash(pos: THREE.Vector3) {
+    const p = pos.clone().setY(0.05);
+    this.p.emit({ count: 34, pos: p, spread: 0.15, velSpread: 1.4, up: 4.5, life: [0.5, 1.0], size: [0.07, 0.16], colors: [0xffffff, 0xd9fbff, 0x9fe8ef], gravity: 14, drag: 0.6 });
+    this.p.emit({ count: 10, pos: p, spread: 0.4, velSpread: 0.5, up: 0.4, life: [0.6, 1.1], size: [0.35, 0.6], grow: 2.4, colors: [0xffffff], gravity: 0, drag: 2, alpha: 0.55 });
+  }
+
+  lava(pos: THREE.Vector3) {
+    this.p.emit({ count: 30, pos, spread: 0.12, velSpread: 1.5, up: 4, life: [0.5, 1.2], size: [0.05, 0.12], colors: [0xffd04a, 0xff7a1a, 0xff3a0a], gravity: 10, drag: 0.8, shape: 2, additive: true });
+    this.p.emit({ count: 12, pos, spread: 0.3, velSpread: 0.4, up: 1.5, life: [1.0, 1.8], size: [0.4, 0.8], grow: 2.5, colors: [0x3a3030, 0x5a4a44], gravity: -1.5, drag: 1.5, alpha: 0.6 });
+  }
+
+  poof(pos: THREE.Vector3) {
+    this.p.emit({ count: 16, pos, spread: 0.2, velSpread: 1.0, up: 1.2, life: [0.4, 0.8], size: [0.2, 0.4], grow: 2.2, colors: [0xffffff, 0xf3dba2], gravity: 1, drag: 3, alpha: 0.75 });
+  }
+
+  boost(pos: THREE.Vector3, dir: THREE.Vector3) {
+    this.p.emit({ count: 20, pos, spread: 0.2, vel: dir.clone().multiplyScalar(-2), velSpread: 1.5, up: 1.5, life: [0.3, 0.6], size: [0.05, 0.12], colors: [0xffe14a, 0xff8a2a, 0xffffff], gravity: 3, drag: 2, shape: 2, additive: true });
+  }
+
+  trailSparkle(pos: THREE.Vector3, color: number) {
+    this.p.emit({ count: 1, pos, spread: 0.08, velSpread: 0.3, up: 0.3, life: [0.3, 0.6], size: [0.04, 0.08], colors: [color, 0xffffff], gravity: -0.5, drag: 1, additive: true });
+  }
+
+  cupBurst(pos: THREE.Vector3, big: boolean) {
+    const p = pos.clone().setY(pos.y + 0.1);
+    this.p.emit({ count: big ? 120 : 60, pos: p, spread: 0.2, velSpread: big ? 3.2 : 2.2, up: big ? 7 : 5, life: [1.2, 2.4], size: [0.07, 0.14], colors: [0xff4f6d, 0xffd23f, 0x2fd6c8, 0x7dff6a, 0xff8a2e, 0xffffff, 0x8a7cff], gravity: 7, drag: 1.4, shape: 1 });
+    this.p.emit({ count: 26, pos: p, spread: 0.1, velSpread: 2.5, up: 3.5, life: [0.4, 0.9], size: [0.06, 0.12], colors: [0xfff3b0, 0xffffff], gravity: 3, drag: 2, shape: 2, additive: true });
+  }
+
+  bumper(pos: THREE.Vector3) {
+    this.p.emit({ count: 14, pos, spread: 0.1, velSpread: 2.2, up: 1, life: [0.2, 0.45], size: [0.05, 0.1], colors: [0xffd23f, 0xffffff], gravity: 2, drag: 3, shape: 2, additive: true });
+  }
+}
