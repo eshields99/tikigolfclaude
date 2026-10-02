@@ -548,12 +548,22 @@ export class Game {
     const cam = this.stage.camera;
     const w = window.innerWidth, h = window.innerHeight;
     const v = new THREE.Vector3();
+    const placed: { x: number; y: number; lab: HTMLElement }[] = [];
     for (const [g, lab] of this.labels) {
       v.set(g.ball.x, g.ball.y + 0.55, g.ball.z).project(cam);
       const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1 && g.state !== 'hazard' && !(g.state === 'holed' && g.ball.atRest);
       lab.style.opacity = vis ? '1' : '0';
-      if (vis) lab.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px) translate(-50%, -100%)`;
+      if (vis) placed.push({ x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h, lab });
     }
+    // nudge overlapping tags upwards so every name stays readable
+    placed.sort((a, b) => b.y - a.y);
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const a = placed[i], b = placed[j];
+        if (Math.abs(a.x - b.x) < 64 && Math.abs(a.y - b.y) < 22) a.y = b.y - 22;
+      }
+    }
+    for (const p of placed) p.lab.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
   }
 
   removeLabels() {
