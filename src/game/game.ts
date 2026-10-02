@@ -15,7 +15,9 @@ import type { Theme } from '../world/decor';
 import { Mat, SURFACES } from '../physics/surfaces';
 import { BALL_R } from '../physics/world';
 import type { Quality } from '../render/renderer';
-import { NavField, ShotSearch, jitterPlan } from './ai';
+import { NavField, ShotSearch, jitterPlan, noiseFor } from './ai';
+import AIWorker from './ai.worker?worker&inline';
+import type { WorkerPlanMsg, WorkerPlanResult } from './ai.worker';
 import { Rng } from '../core/math';
 import type { UI } from '../ui/ui';
 import { audio } from '../audio/audio';
@@ -38,6 +40,8 @@ export interface RivalSpec {
   color: number;
   skin: BallSkin;
   ai: AIProfile;
+  /** Power-up charges for the whole match (mutated as they are used). */
+  powerups?: Record<PowerUp, number>;
 }
 
 export class Game {
@@ -239,6 +243,7 @@ export class Game {
     this.golfers.push(me);
     for (const r of rivals) {
       const g = new Golfer(r.id, r.name, false, r.color, r.skin, this.stage.scene, r.ai);
+      g.aiPowerups = r.powerups ?? null;
       g.view.setOpacity(0.78);
       this.golfers.push(g);
       const lab = document.createElement('div');
@@ -251,7 +256,7 @@ export class Game {
     for (const g of this.golfers) g.total = totals[g.id] ?? 0;
     this.session = new HoleSession(hole, this.golfers, rules, this.makeHooks());
     if (rivals.length) {
-      this.planner.reset(hole);
+      this.planner.reset(hole, `${this.course.id}:${index}`);
       this.session.ai = this.planner;
     }
     this.rig.route = this.session.route;
@@ -275,7 +280,7 @@ export class Game {
   restartHole() {
     if (!this.session || !this.course) return;
     const rules = this.session.rules;
-    const rivals: RivalSpec[] = this.golfers.filter((g) => !g.human).map((g) => ({ id: g.id, name: g.name, color: g.color, skin: g.view.skin, ai: g.ai! }));
+    const rivals: RivalSpec[] = this.golfers.filter((g) => !g.human).map((g) => ({ id: g.id, name: g.name, color: g.color, skin: g.view.skin, ai: g.ai!, powerups: g.aiPowerups ?? undefined }));
     const totals: Record<string, number> = {};
     for (const g of this.golfers) totals[g.id] = g.total;
     this.playHole(this.holeIndex, rules, rivals, totals);
@@ -312,6 +317,7 @@ export class Game {
         } else {
           const d = g.pos.distanceTo(this.stage.camera.position);
           if (d < 18) audio.putt(power * 0.4);
+          if (pu) this.ui.toast(`${g.name} used ${pu === 'fire' ? 'Fire' : pu === 'glide' ? 'Glide' : 'Bounce'}!`, 'info');
         }
         this.updatePlayersHud();
       },
@@ -582,13 +588,44 @@ class Planner implements AIPlanner {
   private jobs: { g: Golfer; s: HoleSession; search: ShotSearch }[] = [];
   private rng = new Rng(Date.now() & 0xffff);
   private hole: unknown = null;
+  private worker: Worker | null = null;
+  private holeKey = '';
+  private nextId = 1;
+  private pending = new Map<number, { g: Golfer; s: HoleSession }>();
 
-  reset(hole: { def: HoleDef; pieces: { shape: { f(x: number, z: number): number }; h(x: number, z: number): number }[]; cup: { x: number; z: number }; bounds: { min: { x: number; z: number }; max: { x: number; z: number } } }) {
+  constructor() {
+    try {
+      this.worker = new AIWorker();
+      this.worker.onmessage = (e: MessageEvent<WorkerPlanResult>) => this.onResult(e.data);
+      this.worker.onerror = () => this.dropWorker();
+    } catch {
+      this.worker = null;
+    }
+  }
+
+  private dropWorker() {
+    this.worker?.terminate();
+    this.worker = null;
+    // re-plan anything that was waiting on the worker on the main thread
+    for (const { g, s } of this.pending.values()) {
+      g.aiThinking = false;
+      void s;
+    }
+    this.pending.clear();
+  }
+
+  reset(hole: { def: HoleDef; pieces: { shape: { f(x: number, z: number): number }; h(x: number, z: number): number }[]; cup: { x: number; z: number }; bounds: { min: { x: number; z: number }; max: { x: number; z: number } } }, holeKey = '') {
+    this.jobs = [];
+    this.pending.clear();
+    this.holeKey = holeKey;
     if (this.hole !== hole) {
       this.nav = new NavField(hole);
       this.hole = hole;
     }
-    this.jobs = [];
+    if (this.worker && holeKey) {
+      const [course, index] = holeKey.split(':');
+      this.worker.postMessage({ type: 'hole', course, index: +index });
+    }
   }
 
   request(g: Golfer, s: HoleSession) {
@@ -596,13 +633,41 @@ class Planner implements AIPlanner {
     this.jobs = this.jobs.filter((j) => j.g !== g);
     const b = g.ball;
     const t0 = s.simTime + Math.max(0.5, g.aiTimer);
-    const quality = 0.35 + (g.ai?.skill ?? 0.6) * 0.65;
-    const search = new ShotSearch(s.hole.world, this.nav, b.x, b.y, b.z, t0, { angles: Math.round(20 + quality * 16), powers: Math.round(5 + quality * 4) });
+    const skill = g.ai?.skill ?? 0.6;
+    const quality = 0.35 + skill * 0.65;
+    // rivals spend their power-ups on long approaches
+    const left = this.nav.at(b.x, b.z);
+    const pw = g.aiPowerups;
+    let pu: PowerUp | null = null;
+    if (pw && pw.fire > 0 && left > 24 && this.rng.next() < 0.5) pu = 'fire';
+    else if (pw && pw.glide > 0 && left > 12 && left < 26 && this.rng.next() < 0.3) pu = 'glide';
+    const angles = Math.round(20 + quality * 16), powers = Math.round(5 + quality * 4);
+    if (this.worker && this.holeKey) {
+      const id = this.nextId++;
+      this.pending.set(id, { g, s });
+      const msg: WorkerPlanMsg = { type: 'plan', id, hole: this.holeKey, x: b.x, y: b.y, z: b.z, t0, angles, powers, pu, skill, seed: (this.rng.next() * 1e9) | 0 };
+      this.worker.postMessage(msg);
+      return;
+    }
+    const search = new ShotSearch(s.hole.world, this.nav, b.x, b.y, b.z, t0, { angles, powers }, pu, noiseFor(skill, this.rng, 4));
     this.jobs.push({ g, s, search });
+  }
+
+  private onResult(r: WorkerPlanResult) {
+    const p = this.pending.get(r.id);
+    if (!p) return;
+    this.pending.delete(r.id);
+    const { g } = p;
+    if (!r.ok || g.state !== 'ready') {
+      g.aiThinking = false;
+      return;
+    }
+    g.aiPlan = jitterPlan({ dx: r.dx, dz: r.dz, speed: r.speed, pu: r.pu }, g.ai?.skill ?? 0.6, this.rng);
   }
 
   cancel(g: Golfer) {
     this.jobs = this.jobs.filter((j) => j.g !== g);
+    for (const [id, p] of this.pending) if (p.g === g) this.pending.delete(id);
   }
 
   update(budgetMs: number) {
@@ -614,8 +679,7 @@ class Planner implements AIPlanner {
         this.jobs.shift();
         const best = j.search.best;
         if (best && j.g.state === 'ready') {
-          const p = jitterPlan(best, j.g.ai?.skill ?? 0.6, this.rng);
-          j.g.aiPlan = p;
+          j.g.aiPlan = jitterPlan(best, j.g.ai?.skill ?? 0.6, this.rng);
         } else j.g.aiThinking = false;
       } else {
         // round robin

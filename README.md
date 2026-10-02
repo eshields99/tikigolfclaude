@@ -59,6 +59,7 @@ npm run typecheck
 npx tsx tools/validate.ts          # build every hole headlessly, play it with the AI planner,
 npx tsx tools/validate.ts vp3      # and scan tee shots for possible holes-in-one
 npx tsx tools/phys-test.ts         # physics sanity checks: roll distances, cup capture, bounces
+npx tsx tools/ai-skill.ts 0.4,0.85 # average rival strokes per hole at given skill levels
 ```
 
 `validate.ts` is the quickest way to check a hole edit: it reports the strokes a perfect
@@ -77,7 +78,10 @@ src/
              waterfalls, lava, the volcano backdrop, seagulls and fireflies
   render/    renderer and post-processing (bloom, tone mapping, SMAA), materials, procedural
              textures, particles and flames
-  game/      game loop, hole session rules, camera rig, aiming input, AI rivals, saves
+  game/      game loop, hole session rules, camera rig, aiming input, saves, and the AI rivals:
+             a Web Worker rebuilds the hole physics and searches shots by simulation, then
+             re-tests the best candidates under the rival's own aim error so it picks robust
+             shots (difficulty scales with your trophies)
   ui/        DOM menus, HUD, result screens and the tiki-styled CSS
   audio/     WebAudio synthesis: putts, bounces, cup rattle, splashes, ambience and a
              procedural ukulele and steel drum soundtrack

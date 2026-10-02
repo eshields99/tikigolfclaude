@@ -6,8 +6,10 @@ import { Golfer } from './golfer';
 import { Route, yawOf } from './camera';
 import type { P2 } from '../core/math';
 
+import { applyPowerup, speedFor, powerFor, type PowerUp } from './powerups';
+
 export type GameMode = 'tour' | 'battle' | 'rush' | 'practice';
-export type PowerUp = 'fire' | 'glide' | 'bounce';
+export type { PowerUp };
 
 export interface SessionRules {
   mode: GameMode;
@@ -107,27 +109,13 @@ export class HoleSession {
   }
 
   static speedFor(power: number) {
-    return 0.9 + Math.pow(power, 1.08) * 17.6;
+    return speedFor(power);
   }
 
   shoot(g: Golfer, dx: number, dz: number, power: number, pu: PowerUp | null = null) {
     if (g.state !== 'ready' || this.phase !== 'play') return;
-    let speed = HoleSession.speedFor(power);
-    let vy = 0;
     const b = g.ball;
-    b.clearMods();
-    if (pu === 'fire') {
-      speed = Math.min(26, speed * 1.38);
-      b.sandProof = true;
-      b.rollMul = 0.8;
-    } else if (pu === 'glide') {
-      b.rollMul = 0.32;
-      b.sandProof = true;
-    } else if (pu === 'bounce') {
-      speed *= 0.92;
-      vy = 3.6 + power * 3.2;
-      b.bouncy = true;
-    }
+    const { speed, vy } = applyPowerup(b, pu, speedFor(power));
     g.lastRest.set(b.x, b.y, b.z);
     b.launch(dx, dz, speed, vy);
     if (!vy) b.grounded = true;
@@ -154,16 +142,16 @@ export class HoleSession {
         const p = g.aiPlan;
         g.aiPlan = null;
         g.aiThinking = false;
-        this.shootSpeed(g, p.dx, p.dz, p.speed);
+        const pu = p.pu && g.aiPowerups && g.aiPowerups[p.pu] > 0 ? p.pu : null;
+        if (pu) g.aiPowerups![pu]--;
+        this.shootSpeed(g, p.dx, p.dz, p.speed, pu);
         g.aiTimer = this.aiDelay(g);
       }
     }
   }
 
-  shootSpeed(g: Golfer, dx: number, dz: number, speed: number) {
-    // invert speedFor
-    const p = Math.pow(Math.max(0, (speed - 0.9) / 17.6), 1 / 1.08);
-    this.shoot(g, dx, dz, Math.min(1, p));
+  shootSpeed(g: Golfer, dx: number, dz: number, speed: number, pu: PowerUp | null = null) {
+    this.shoot(g, dx, dz, powerFor(speed), pu);
   }
 
   update(dt: number) {

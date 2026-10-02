@@ -235,6 +235,7 @@ export class App {
         color: r.color,
         skin,
         ai: { skill: Math.max(0.35, Math.min(0.95, baseSkill + rng.range(-0.15, 0.12))), thinkTime: mode === 'rush' ? [0.7, 1.6] : [1.6, 3.6] },
+        powerups: { fire: 1, glide: 1, bounce: 0 },
       });
     }
     // pick an unlocked island at random

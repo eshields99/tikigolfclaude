@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Ball } from '../physics/world';
 import { BallView, type BallSkin } from './ballview';
-import type { PowerUp } from './session';
+import type { PowerUp } from './powerups';
 
 export type GolferState = 'waiting' | 'ready' | 'rolling' | 'hazard' | 'holed' | 'out';
 
@@ -27,7 +27,9 @@ export class Golfer {
   label: HTMLElement | null = null;
   shotYaw = 0;
   aiTimer = 0;
-  aiPlan: { dx: number; dz: number; speed: number } | null = null;
+  aiPlan: { dx: number; dz: number; speed: number; pu?: PowerUp | null } | null = null;
+  /** Rival power-up charges (shared across a match's holes). */
+  aiPowerups: Record<PowerUp, number> | null = null;
   aiThinking = false;
   /** Power-up active on the current shot. */
   power: PowerUp | null = null;
