@@ -9,6 +9,7 @@ import type { Quality } from './render/renderer';
 import { audio } from './audio/audio';
 import { Rng } from './core/math';
 import { STAR } from './ui/icons';
+import { loadFonts } from './ui/fonts';
 
 const UNLOCK_STARS = [0, 4, 10];
 const RIVALS = [
@@ -46,7 +47,7 @@ export class App {
 
   async boot() {
     const ld = this.ui.showLoading();
-    await Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1500))]);
+    await loadFonts();
     ld.progress(0.15, 'Raking the sand traps…');
     await nextFrame();
     const canvas = el('canvas', 'game');
@@ -72,6 +73,11 @@ export class App {
     ld.done();
     this.ui.onPause = () => this.pause();
     this.game.onHoleFinished = (s) => this.holeFinished(s);
+    this.game.tutorial = !this.save.data.tutorialDone;
+    this.game.onTutorialDone = () => {
+      this.save.data.tutorialDone = true;
+      this.save.persist();
+    };
     // audio needs a gesture
     const unlock = () => {
       audio.unlock();

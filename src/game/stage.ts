@@ -62,6 +62,7 @@ export class Stage {
   setQuality(q: Quality) {
     this.renderer.applyQuality(q);
     this.renderer.setup(this.scene, this.camera);
+    this.applyCasterBudget();
     const size = q === 'low' ? 1024 : 2048;
     if (this.lights.sun.shadow.mapSize.x !== size) {
       this.lights.sun.shadow.mapSize.set(size, size);
@@ -120,7 +121,7 @@ export class Stage {
   loadHole(def: HoleDef, style: CourseStyle, theme: Theme) {
     this.unloadHole();
     const hole = buildHole(def, style);
-    const island = buildIsland(hole, this.preset, { volcanic: theme === 'volcano' });
+    const island = buildIsland(hole, this.preset, { volcanic: theme === 'volcano', detail: this.renderer.quality === 'high' ? 1 : 0.75 });
     const ocean = makeOcean(this.preset, island);
     const detail = this.renderer.quality === 'low' ? 0.5 : this.renderer.quality === 'medium' ? 0.8 : 1;
     const exclude = [...(def.lava ?? []), ...(def.pools ?? [])].map((l) => l.shape);
@@ -151,7 +152,17 @@ export class Stage {
     this.holeGroup.add(this.critters.group);
     this.holeGroup.add(this.torchLights.group);
     this.lights.fit(hole.bounds);
+    this.applyCasterBudget();
     return hole;
+  }
+
+  /** On lower quality tiers, minor casters (wall stones, plinths) skip the shadow pass. */
+  applyCasterBudget() {
+    const full = this.renderer.quality === 'high';
+    this.hole?.group.traverse((o) => {
+      if (o.userData.minorCaster) o.castShadow = full;
+    });
+    this.lights.sun.shadow.needsUpdate = true;
   }
 
   unloadHole() {

@@ -272,6 +272,21 @@ export class UI {
     if (p.innerHTML !== html) p.innerHTML = html;
   }
 
+  /** Ghost hand demonstrating the pull-back gesture at a screen position (null hides it). */
+  tutorialHand(x: number | null, y = 0) {
+    let t = this.hud?.querySelector('.tut') as HTMLElement | null;
+    if (x === null) {
+      t?.remove();
+      return;
+    }
+    if (!this.hud) return;
+    if (!t) {
+      t = el('div', 'tut', `<div class="tut-line"></div><div class="tut-hand">${ICON.hand}</div><div class="tut-label outline">Pull back</div>`);
+      this.hud.append(t);
+    }
+    t.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
   powerups(counts: Record<string, number>, armed: string | null, onToggle: (p: 'fire' | 'glide' | 'bounce') => void) {
     if (!this.hud) return;
     let tray = this.hud.querySelector('.pu-tray') as HTMLElement | null;

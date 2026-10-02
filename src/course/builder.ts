@@ -413,6 +413,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     if (im.instanceColor) im.instanceColor.needsUpdate = true;
     im.castShadow = true;
     im.receiveShadow = true;
+    im.userData.minorCaster = true;
     im.computeBoundingSphere();
     group.add(im);
   }
@@ -451,6 +452,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     const m = new THREE.Mesh(g, plinthMat);
     m.receiveShadow = true;
     m.castShadow = true;
+    m.userData.minorCaster = true;
     group.add(m);
     disposables.push(g);
   }

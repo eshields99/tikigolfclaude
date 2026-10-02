@@ -27,7 +27,7 @@ const ROCK = new THREE.Color(0x5f5a58);
 const VOLC_SAND = new THREE.Color(0x6e625c);
 const VOLC_WET = new THREE.Color(0x4a403c);
 
-export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcanic?: boolean } = {}): IslandBuild {
+export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcanic?: boolean; detail?: number } = {}): IslandBuild {
   const def = hole.def.island ?? {};
   const fp = hole.footprint;
   const margin = def.margin ?? 4;
@@ -41,7 +41,7 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
 
   const cx = (fp.b[0] + fp.b[2]) / 2, cz = (fp.b[1] + fp.b[3]) / 2;
   const half = Math.max(fp.b[2] - fp.b[0], fp.b[3] - fp.b[1]) / 2 + 60;
-  const N = Math.min(150, Math.ceil((half * 2) / 1.2));
+  const N = Math.min(Math.round(150 * (opts.detail ?? 1)), Math.ceil((half * 2) / 1.2));
   const cell = (half * 2) / N;
 
   const landExact = (x: number, z: number) => {

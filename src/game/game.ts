@@ -70,6 +70,9 @@ export class Game {
   powerups: Record<PowerUp, number> = { fire: 0, glide: 0, bounce: 0 };
   armed: PowerUp | null = null;
   onPowerupUsed: ((p: PowerUp) => void) | null = null;
+  /** Show the ghost-hand tutorial until the first shot. */
+  tutorial = false;
+  onTutorialDone: (() => void) | null = null;
   private puT = 0;
 
   constructor(canvas: HTMLCanvasElement, public ui: UI, quality: Quality) {
@@ -288,6 +291,11 @@ export class Game {
   private makeHooks(): SessionHooks {
     return {
       hit: (g, power, pu) => {
+        if (g.human && this.tutorial) {
+          this.tutorial = false;
+          this.ui.tutorialHand(null);
+          this.onTutorialDone?.();
+        }
         this.fx.hit(g.pos, power, pu ? POWER_COLORS[pu][0] : g.view.skin.trail[0]);
         if (pu === 'fire') this.fx.fireBurst(g.pos);
         if (g.human) {
@@ -485,6 +493,11 @@ export class Game {
           else this.aim.idle(ballPos, sy, BALL_R, dt);
         } else this.aim.idle(ballPos, sy, BALL_R, dt);
       } else this.aim.hide();
+      // first-shot tutorial hand at the ball
+      if (this.tutorial && h.state === 'ready' && s.phase === 'play' && this.rig.introDone && !s.aiming && !this.overviewOn) {
+        const v = ballPos.clone().project(this.stage.camera);
+        this.ui.tutorialHand(((v.x + 1) / 2) * window.innerWidth, ((1 - v.y) / 2) * window.innerHeight + 18);
+      } else if (this.tutorial) this.ui.tutorialHand(null);
       // power-up aura & particles
       this.puT += dt;
       for (const g of s.golfers) {
