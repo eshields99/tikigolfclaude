@@ -447,7 +447,7 @@ export class UI {
     });
   }
 
-  battleResult(data: { title: string; ranking: { name: string; color: number; total: number; me: boolean }[]; trophies: number; coins: number; myRank: number }, h: { again(): void; menu(): void }) {
+  battleResult(data: { title: string; ranking: { name: string; color: number; total: number; me: boolean }[]; trophies: number; coins: number; myRank: number; timed?: boolean }, h: { again(): void; menu(): void }) {
     this.clear();
     const back = el('div', 'sheet-backdrop');
     const sheet = el('div', 'sheet panel', `<div class="plank">${data.title}</div>`);
@@ -459,8 +459,8 @@ export class UI {
       'beforeend',
       `<div class="result-head"><div class="big">${data.myRank === 0 ? 'Victory!' : `You placed ${rankWord}`}</div><div class="sub">${data.myRank === 0 ? 'Chief of the island!' : 'So close — go again!'}</div></div>
       <div class="podium">${spot(1, 'p2')}${spot(0, 'p1')}${spot(2, 'p3')}</div>
-      <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">GOLFER</th><th>STROKES</th></tr>${r
-        .map((p, i) => `<tr class="${p.me ? 'cur' : ''}"><td>${i + 1}. ${p.me ? 'You' : p.name}</td><td><b>${p.total}</b></td></tr>`)
+      <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">GOLFER</th><th>${data.timed ? 'TIME' : 'STROKES'}</th></tr>${r
+        .map((p, i) => `<tr class="${p.me ? 'cur' : ''}"><td>${i + 1}. ${p.me ? 'You' : p.name}</td><td><b>${data.timed ? p.total.toFixed(1) + 's' : p.total}</b></td></tr>`)
         .join('')}</table>
       <div class="reward"><div class="chip">${TROPHY}<span>${data.trophies >= 0 ? '+' : ''}${data.trophies}</span></div><div class="chip">${COIN}<span>+${data.coins}</span></div></div>`,
     );

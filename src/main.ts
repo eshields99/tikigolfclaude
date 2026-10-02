@@ -11,3 +11,4 @@ app.boot().catch((e) => {
   console.error(e);
   document.body.insertAdjacentHTML('beforeend', `<pre style="position:fixed;inset:auto 10px 10px 10px;color:#fff;background:#a22;padding:10px;border-radius:8px;white-space:pre-wrap;z-index:999">${String(e?.stack ?? e)}</pre>`);
 });
+if (import.meta.env.DEV) void import('./game/ai').then((m) => ((window as unknown as { __ai: unknown }).__ai = m));

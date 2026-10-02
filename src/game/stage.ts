@@ -46,6 +46,11 @@ export class Stage {
 
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
     this.renderer = new Renderer(canvas, quality);
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:grid;place-items:center;background:#06222e;color:#fff;font:600 18px Fredoka,sans-serif;z-index:999;text-align:center;padding:20px">Reloading the island…</div>');
+    });
+    canvas.addEventListener('webglcontextrestored', () => location.reload());
     this.scene.add(this.particles.mesh, this.particles.meshAdd);
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
     this.lights = new LightRig(this.preset, quality === 'low' ? 1024 : 2048);

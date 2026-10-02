@@ -425,6 +425,7 @@ export class Game {
       }
       this.rig.update(dtReal, {
         ball: camBall,
+        ballVel: new THREE.Vector3(h.ball.vx, 0, h.ball.vz),
         cup: hole.cup,
         aiming: s.aiming,
         aimPower: s.aimPower,

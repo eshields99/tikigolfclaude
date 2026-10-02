@@ -366,6 +366,7 @@ export class App {
         trophies,
         coins,
         myRank,
+        timed: this.mode === 'rush',
       },
       {
         again: () => this.startBattle(this.mode as 'battle' | 'rush'),

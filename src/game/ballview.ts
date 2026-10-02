@@ -74,6 +74,7 @@ export class BallView {
   mesh: THREE.Mesh;
   private mat: THREE.MeshPhysicalMaterial;
   private trail: Trail;
+  private blob: THREE.Mesh;
   skin: BallSkin = SKINS[0];
 
   constructor(scene: THREE.Object3D) {
@@ -91,8 +92,40 @@ export class BallView {
     this.mesh.castShadow = true;
     this.group.add(this.mesh);
     this.trail = new Trail();
-    scene.add(this.group, this.trail.mesh);
+    // soft contact shadow
+    const bc = document.createElement('canvas');
+    bc.width = bc.height = 64;
+    const bg = bc.getContext('2d')!;
+    const grd = bg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grd.addColorStop(0.5, 'rgba(0,0,0,0.25)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    bg.fillStyle = grd;
+    bg.fillRect(0, 0, 64, 64);
+    const bt = new THREE.CanvasTexture(bc);
+    const bgeo = new THREE.PlaneGeometry(1, 1);
+    bgeo.rotateX(-Math.PI / 2);
+    this.blob = new THREE.Mesh(bgeo, new THREE.MeshBasicMaterial({ map: bt, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    this.blob.renderOrder = 2;
+    this.blob.visible = false;
+    scene.add(this.group, this.trail.mesh, this.blob);
     this.setSkin(SKINS[0]);
+  }
+
+  /** Place the contact shadow on the ground below the ball (groundY = -Infinity hides it). */
+  setGround(groundY: number) {
+    const p = this.group.position;
+    if (groundY === -Infinity || !this.group.visible) {
+      this.blob.visible = false;
+      return;
+    }
+    const h = Math.max(0, p.y - BALL_R - groundY);
+    const k = Math.max(0, 1 - h / 2.2);
+    this.blob.visible = k > 0.02;
+    this.blob.position.set(p.x, groundY + 0.006, p.z);
+    const s = BALL_R * 3.2 * (1 + h * 0.35);
+    this.blob.scale.set(s, 1, s);
+    (this.blob.material as THREE.MeshBasicMaterial).opacity = k * 0.9;
   }
 
   setSkin(s: BallSkin) {
@@ -127,6 +160,7 @@ export class BallView {
   setVisible(v: boolean) {
     this.group.visible = v;
     this.trail.mesh.visible = v;
+    if (!v) this.blob.visible = false;
   }
 
   setOpacity(o: number) {
@@ -136,7 +170,10 @@ export class BallView {
   }
 
   dispose(scene: THREE.Object3D) {
-    scene.remove(this.group, this.trail.mesh);
+    scene.remove(this.group, this.trail.mesh, this.blob);
+    this.blob.geometry.dispose();
+    (this.blob.material as THREE.MeshBasicMaterial).map?.dispose();
+    (this.blob.material as THREE.Material).dispose();
     this.mesh.geometry.dispose();
     this.mat.map?.dispose();
     this.mat.dispose();

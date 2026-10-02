@@ -203,6 +203,7 @@ export class HoleSession {
       }
       const b = g.ball;
       g.view.sync(b.x, b.y, b.z, b.wx, b.wy, b.wz, dt);
+      g.view.setGround(g.state === 'holed' && b.y < this.hole.cup.y - 0.1 ? -Infinity : this.hole.surfaceY(b.x, b.z, b.y + 0.05));
       g.view.updateTrail(g.state === 'rolling' || (g.state === 'holed' && !b.atRest), dt, b.speed);
     }
     // end conditions

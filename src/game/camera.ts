@@ -46,6 +46,7 @@ export class Route {
 
 export interface CamContext {
   ball: THREE.Vector3;
+  ballVel?: THREE.Vector3;
   cup: THREE.Vector3;
   aiming: boolean;
   aimPower: number;
@@ -84,7 +85,7 @@ export class CameraRig {
   setAspect(aspect: number) {
     this.portrait = aspect < 1;
     // keep a pleasant horizontal coverage in portrait, tighter vertical in landscape
-    this.cam.fov = this.portrait ? clamp(58 / Math.max(0.45, aspect * 1.25), 52, 70) : 46;
+    this.cam.fov = this.portrait ? clamp(58 / Math.max(0.45, aspect * 1.25), 52, 70) : 50;
     this.cam.aspect = aspect;
     this.cam.updateProjectionMatrix();
   }
@@ -158,8 +159,8 @@ export class CameraRig {
     let tgt = new THREE.Vector3();
     let yaw = this.yaw, pitch = this.pitch, dist = this.dist;
     let lambda = 4.5;
-    const baseDist = this.portrait ? 8.6 : 7.4;
-    const basePitch = this.portrait ? 0.66 : 0.52;
+    const baseDist = this.portrait ? 8.8 : 8.0;
+    const basePitch = this.portrait ? 0.6 : 0.42;
     switch (this.mode) {
       case 'intro': {
         this.introT += dt;
@@ -196,6 +197,11 @@ export class CameraRig {
         break;
       }
       case 'follow': {
+        // gently swing around bends when the ball keeps travelling forward-ish
+        if (c.ballSpeed > 2.5 && c.ballVel) {
+          const vy = yawOf(c.ballVel.x, c.ballVel.z);
+          if (Math.abs(wrapAngle(vy - this.shotYaw)) < 1.6) this.shotYaw = dampAngle(this.shotYaw, vy, 0.9, dt);
+        }
         yaw = this.shotYaw + this.userYaw;
         this.yaw = this.shotYaw;
         tgt.copy(c.ball);
