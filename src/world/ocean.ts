@@ -12,22 +12,21 @@ export function makeOcean(p: EnvPreset, island: IslandBuild) {
     transparent: true,
     depthWrite: false,
     fog: true,
-    uniforms: THREE.UniformsUtils.merge([
-      THREE.UniformsLib.fog,
-      {
-        tDepth: { value: island.depthTex },
-        tNormal: { value: waterNormal() },
-        tFoam: { value: foamTexture() },
-        uDepthBounds: { value: island.depthBounds },
-        uShallow: { value: p.waterShallow.clone() },
-        uDeep: { value: p.waterDeep.clone() },
-        uSunDir: { value: p.sunDir.clone() },
-        uSunColor: { value: p.sunColor.clone().multiplyScalar(1.0) },
-        uSkyTop: { value: p.skyTop.clone() },
-        uSkyHorizon: { value: p.skyHorizon.clone() },
-        uTime: { value: 0 },
-      },
-    ]),
+    // note: UniformsUtils.merge would clone (and leak) the textures, so only the fog block is cloned
+    uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      tDepth: { value: island.depthTex },
+      tNormal: { value: waterNormal() },
+      tFoam: { value: foamTexture() },
+      uDepthBounds: { value: island.depthBounds },
+      uShallow: { value: p.waterShallow.clone() },
+      uDeep: { value: p.waterDeep.clone() },
+      uSunDir: { value: p.sunDir.clone() },
+      uSunColor: { value: p.sunColor.clone() },
+      uSkyTop: { value: p.skyTop.clone() },
+      uSkyHorizon: { value: p.skyHorizon.clone() },
+      uTime: sharedUniforms.uTime,
+    },
     vertexShader: /* glsl */ `
       uniform float uTime;
       varying vec3 vW;
@@ -94,7 +93,6 @@ export function makeOcean(p: EnvPreset, island: IslandBuild) {
         #include <fog_fragment>
       }`,
   });
-  mat.uniforms.uTime = sharedUniforms.uTime;
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(island.center.x, 0, island.center.y);
   mesh.renderOrder = 1;

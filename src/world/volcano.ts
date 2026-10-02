@@ -39,9 +39,11 @@ export class Volcano {
       const ridge = nz.fbm2(a * 3.2, t * 4, 4) * radius * 0.09 * (1 - t * 0.5) + Math.abs(Math.sin(a * 9 + nz.noise2(t * 3, a) * 2)) * radius * 0.025;
       const k = 1 + ridge / Math.max(1, Math.hypot(x, z));
       P.setXYZ(i, x * k, y + nz.noise2(a * 2, t * 3) * height * 0.015, z * k);
-      const ash = 0.16 + nz.fbm2(a * 4, t * 6, 3) * 0.05 + t * 0.06;
-      const c = new THREE.Color(ash * 1.15, ash * 0.95, ash * 0.9);
-      if (t < 0.12) c.lerp(new THREE.Color(0x3f5a2c), 0.6 * (1 - t / 0.12));
+      const ash = 0.2 + nz.fbm2(a * 4, t * 6, 3) * 0.05 + t * 0.07;
+      const c = new THREE.Color(ash * 1.12, ash * 0.92, ash * 0.92);
+      // jungle on the lower slopes
+      const veg = THREE.MathUtils.smoothstep(0.32 - nz.noise2(a * 6, 1) * 0.08, 0.05, t);
+      c.lerp(new THREE.Color(0x3d6a34), veg * 0.85);
       cols.push(c.r, c.g, c.b);
       // lava rivers: narrow bands at a few angles starting near the top
       let lv = 0;
@@ -112,10 +114,10 @@ export class Volcano {
   }
 
   private spawnPuff(age = 0) {
-    const life = 18 + Math.random() * 6;
-    const v = new THREE.Vector3((Math.random() - 0.5) * 1.2 + 1.6, 4.2 + Math.random() * 1.5, (Math.random() - 0.5) * 1.2);
-    const p = this.crater.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6));
-    const puff = { p, v, s: 8 + Math.random() * 6, age: 0, life };
+    const life = 22 + Math.random() * 8;
+    const v = new THREE.Vector3((Math.random() - 0.5) * 1.2 + 3.4, 2.6 + Math.random() * 1.2, (Math.random() - 0.5) * 1.2 + 0.6);
+    const p = this.crater.clone().add(new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 8));
+    const puff = { p, v, s: 12 + Math.random() * 8, age: 0, life };
     for (let t = 0; t < age; t += 0.5) this.stepPuff(puff, 0.5);
     this.puffs.push(puff);
   }
@@ -123,8 +125,8 @@ export class Volcano {
   private stepPuff(q: { p: THREE.Vector3; v: THREE.Vector3; age: number }, dt: number) {
     q.age += dt;
     q.p.addScaledVector(q.v, dt);
-    q.v.y *= 1 - dt * 0.05;
-    q.v.x += dt * 0.25;
+    q.v.y *= 1 - dt * 0.04;
+    q.v.x += dt * 0.12;
   }
 
   update(dt: number, camera: THREE.Camera) {
@@ -145,9 +147,9 @@ export class Volcano {
       const s = q.s * (1 + t * 3.2);
       m.makeScale(s, s, s).setPosition(q.p);
       this.smoke.setMatrixAt(n, m);
-      const base = 0.2 + t * 0.25;
-      const glow = Math.max(0, 1 - t * 4);
-      col.setXYZW(n, base + glow * 0.55, base * 0.92 + glow * 0.18, base * 0.9, Math.min(1, t * 6) * (1 - t) * 0.75);
+      const base = 0.3 + t * 0.35;
+      const glow = Math.max(0, 1 - t * 3.2);
+      col.setXYZW(n, base * 0.95 + glow * 0.7, base * 0.82 + glow * 0.25, base * 0.86, Math.min(1, t * 5) * Math.pow(1 - t, 0.6) * 0.95);
       n++;
     }
     this.smoke.count = n;

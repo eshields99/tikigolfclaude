@@ -70,6 +70,7 @@ function skinTexture(s: BallSkin) {
 }
 
 export class BallView {
+  static depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   group = new THREE.Group();
   mesh: THREE.Mesh;
   private mat: THREE.MeshPhysicalMaterial;
@@ -90,6 +91,9 @@ export class BallView {
     });
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.castShadow = true;
+    // Own depth material: three's shared shadow material copies a caster's `map`, which would keep a
+    // disposed skin texture alive (and re-uploaded) after this ball is gone.
+    this.mesh.customDepthMaterial = BallView.depthMat;
     this.group.add(this.mesh);
     this.trail = new Trail();
     // soft contact shadow

@@ -186,12 +186,16 @@ export function makeClouds(p: EnvPreset, seed = 3) {
       void main(){
         vec3 n = normalize(vN);
         float l = dot(n, normalize(uSunDir)) * 0.5 + 0.5;
-        l = smoothstep(0.15, 0.95, l);
+        l = smoothstep(0.1, 0.9, l);
         float up = n.y * 0.5 + 0.5;
-        vec3 col = mix(uShade, uLit, l * 0.8 + up * 0.25);
+        vec3 col = mix(uShade, uLit, clamp(l * 0.75 + up * 0.35, 0.0, 1.0));
         vec3 V = normalize(cameraPosition - vW);
-        float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-        col += uLit * rim * 0.25;
+        float rim = pow(1.0 - max(dot(n, V), 0.0), 2.5);
+        // silver lining when looking toward the sun
+        float toward = max(dot(-V, normalize(uSunDir)), 0.0);
+        col += uLit * rim * (0.22 + toward * 0.6);
+        // darker flat bases
+        col *= mix(0.82, 1.0, smoothstep(-0.6, 0.2, n.y));
         // fade toward horizon colour at low altitude
         float hz = smoothstep(60.0, 0.0, vW.y);
         col = mix(col, uHorizon, hz * 0.45);
@@ -202,28 +206,39 @@ export function makeClouds(p: EnvPreset, seed = 3) {
   });
   const sphere = new THREE.IcosahedronGeometry(1, 2);
   const geos: THREE.BufferGeometry[] = [];
-  const nClouds = 16;
+  const nClouds = 22;
   for (let c = 0; c < nClouds; c++) {
     const parts: THREE.BufferGeometry[] = [];
-    const n = rng.int(5, 8);
-    const w = rng.range(30, 70);
+    const big = rng.next() < 0.45;
+    const w = big ? rng.range(70, 130) : rng.range(35, 70);
+    const n = big ? rng.int(9, 13) : rng.int(5, 8);
+    const peak = rng.range(0.25, 0.75);
     for (let i = 0; i < n; i++) {
       const g = sphere.clone();
-      const t = i / (n - 1) - 0.5;
-      const r = rng.range(8, 15) * (1 - Math.abs(t) * 0.9);
-      g.scale(r, r * rng.range(0.75, 1.0), r);
-      g.translate(t * w + rng.range(-4, 4), r * 0.35 + rng.range(0, 4) * (1 - Math.abs(t) * 1.6), rng.range(-6, 6));
+      const t = i / (n - 1);
+      // tallest puffs near the "peak", tapering to both ends -> cumulus silhouette
+      const prof = Math.exp(-Math.pow((t - peak) / 0.38, 2));
+      const r = (big ? rng.range(14, 22) : rng.range(9, 14)) * (0.45 + prof * 0.75);
+      g.scale(r, r * rng.range(0.82, 1.0), r * rng.range(0.85, 1.1));
+      g.translate((t - 0.5) * w + rng.range(-4, 4), r * 0.42 + prof * (big ? 16 : 8) * rng.range(0.6, 1.0), rng.range(-9, 9));
       parts.push(g);
     }
-    // flat-ish base
+    // a few small cauliflower bumps on top
+    for (let i = 0; i < (big ? 5 : 2); i++) {
+      const g = sphere.clone();
+      const r = rng.range(5, 9);
+      g.scale(r, r, r);
+      g.translate((peak - 0.5) * w + rng.range(-w * 0.18, w * 0.18), (big ? 30 : 16) + rng.range(0, 8), rng.range(-6, 6));
+      parts.push(g);
+    }
     const merged = mergeGeos(parts);
     const pos = merged.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0) pos.setY(i, pos.getY(i) * 0.25);
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0) pos.setY(i, pos.getY(i) * 0.18);
     merged.computeVertexNormals();
     const ang = rng.range(0, Math.PI * 2);
-    const dist = rng.range(330, 560);
+    const dist = rng.range(380, 640);
     merged.rotateY(-ang + Math.PI / 2);
-    merged.translate(Math.cos(ang) * dist, rng.range(45, 110), Math.sin(ang) * dist);
+    merged.translate(Math.cos(ang) * dist, rng.range(28, 95), Math.sin(ang) * dist);
     geos.push(merged);
   }
   const all = mergeGeos(geos);

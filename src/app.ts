@@ -302,7 +302,9 @@ export class App {
     // battle / rush: accumulate
     for (const g of s.golfers) {
       this.totals[g.id] = (this.totals[g.id] ?? 0) + g.strokes;
-      const t = g.state === 'holed' ? g.holedAt : s.rules.timeLimit + 15;
+      // rivals still on the course when the race ends get an estimate from their distance to the cup
+      const left = Math.hypot(g.ball.x - s.hole.cup.x, g.ball.z - s.hole.cup.z);
+      const t = g.state === 'holed' ? g.holedAt : g.state === 'out' && s.timeLeft <= 0 ? s.rules.timeLimit + 10 : s.elapsed + 2.5 + left * 0.35;
       this.rushTimes[g.id] = (this.rushTimes[g.id] ?? 0) + t;
     }
     const last = this.battleHole >= c.holes.length - 1;

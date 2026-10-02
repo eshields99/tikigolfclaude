@@ -34,6 +34,6 @@ export const COURSES: CourseInfo[] = [
     color: '#ff7a3a',
     style: { turfA: 0x6ccd3a, turfB: 0x55b62e, stone: 0x544c49, plinth: 0x433a37, sand: 0x7a685c, wood: 0x7a4a2a, flag: 0xe0242c },
     holes: volcanoPeak,
-    backdrop: { volcano: { at: [-60, -190], height: 105, radius: 120 } },
+    backdrop: { volcano: { at: [-95, -330], height: 125, radius: 150 } },
   },
 ];
