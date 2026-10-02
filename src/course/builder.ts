@@ -373,6 +373,13 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     disposables.push(cg, cupMat);
   }
   const flag = new Flag(cupPos.x, cupY, cupPos.z, style.flag);
+  // face the cloth toward the final approach so it reads well from where the player putts
+  {
+    const r = def.route && def.route.length >= 2 ? def.route[def.route.length - 2] : def.tee;
+    const from = Math.hypot(r[0] - def.cup[0], r[1] - def.cup[1]) > 0.5 ? r : def.tee;
+    flag.faceYaw(Math.atan2(from[0] - def.cup[0], from[1] - def.cup[1]));
+  }
+  flag.group.scale.setScalar(1.25);
   group.add(flag.group);
   updaters.push((_t, dt) => flag.update(dt));
 

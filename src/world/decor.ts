@@ -5,7 +5,7 @@ import type { IslandBuild } from './island';
 import type { EnvPreset } from './environment';
 import type { DecorDef } from '../course/types';
 import { Rng, hashString } from '../core/math';
-import { palmGeo, fernGeo, leafPlantGeo, flowerBushGeo, boulderGeo, tikiGeo, torchGeo, hutGeo, jungleTreeGeo, spireGeo, TORCH_TOP } from './props';
+import { palmGeo, fernGeo, leafPlantGeo, flowerBushGeo, boulderGeo, tikiGeo, torchGeo, hutGeo, jungleTreeGeo, spireGeo, canoeGeo, surfboardGeo, TORCH_TOP } from './props';
 import { makeFoliageMaterial, makeVertexColorMaterial } from '../render/materials';
 import { getRockMaterial, getTikiMaterial } from '../course/obstacles';
 import { FlameField } from '../render/fx';
@@ -167,6 +167,37 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
       occupy(x, z, 3.0);
     }
   }
+  // pass 1b: beach life — canoes pulled up on the sand and surfboards stuck upright
+  if (theme !== 'volcano') {
+    let canoes = 0, boards = 0;
+    const maxCanoes = theme === 'beach' ? 2 : 1, maxBoards = theme === 'beach' ? 4 : 0;
+    for (const { x, z, y, cd, inland } of cells) {
+      if (y < 0.02 || y > 0.6 || inland < 0.4 || inland > 2.2 || cd < 4) continue;
+      const p = rng.next();
+      // coastline normal from the land SDF gradient (points out to sea)
+      const e = 0.5;
+      const gx = island.landSDF(x + e, z) - island.landSDF(x - e, z);
+      const gz = island.landSDF(x, z + e) - island.landSDF(x, z - e);
+      const seaYaw = Math.atan2(gx, gz);
+      if (canoes < maxCanoes && p < 0.04 && free(x, z, 3)) {
+        // canoe lies along the shore line (its +X across the sea direction)
+        add('canoe' + rng.int(0, 2), x, y - 0.05, z, seaYaw + rng.range(-0.3, 0.3), 1);
+        occupy(x, z, 3);
+        canoes++;
+      } else if (boards < maxBoards && p < 0.08 && free(x, z, 1.6)) {
+        const n = rng.int(1, 3);
+        for (let k = 0; k < n; k++) {
+          const d = (k - (n - 1) / 2) * 0.55; // spaced along the shoreline
+          const ox = Math.cos(seaYaw) * d, oz = -Math.sin(seaYaw) * d;
+          q.setFromEuler(new THREE.Euler(rng.range(-0.18, 0.05), seaYaw + rng.range(-0.25, 0.25), rng.range(-0.12, 0.12), 'YXZ'));
+          insts.push({ key: 'surf' + rng.int(0, 5), m: new THREE.Matrix4().compose(new THREE.Vector3(x + ox, y - 0.25, z + oz), q, new THREE.Vector3(1, 1, 1)) });
+        }
+        occupy(x, z, 1.6);
+        boards++;
+      }
+    }
+  }
+
   // pass 2: shallows rocks, undergrowth and boulders
   for (const { x, z, y, cd, inland } of cells) {
     if (y < -0.05) {
@@ -229,6 +260,8 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
     else if (key.startsWith('rock')) { geo = boulderGeo(+key.slice(4) + 100, 2); mat = getRockMaterial(); }
     else if (key.startsWith('tiki')) { geo = tikiGeo(+key.slice(4)); mat = getTikiMaterial(); }
     else if (key === 'torch') { geo = torchGeo(); mat = m.propMat; }
+    else if (key.startsWith('canoe')) { geo = canoeGeo(+key.slice(5)); mat = getTikiMaterial(); }
+    else if (key.startsWith('surf')) { geo = surfboardGeo(+key.slice(4)); mat = m.propMat; }
     else if (key === 'hut') { geo = hutGeo(); mat = m.propMat; }
     else continue;
     const im = new THREE.InstancedMesh(geo, mat, list.length);

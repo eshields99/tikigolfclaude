@@ -636,3 +636,48 @@ export function spireGeo(seed: number): THREE.BufferGeometry {
     return g;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Outrigger canoe (~4.4 long along +X), resting on the sand.
+// ---------------------------------------------------------------------------
+export function canoeGeo(seed: number): THREE.BufferGeometry {
+  return memo('canoe' + seed, () => {
+    const rng = new Rng(seed * 37 + 9);
+    const gb = new GeoBuilder();
+    const hullCol = new THREE.Color(rng.pick([0x8a3b22, 0x6b4426, 0x9c5a2c]));
+    const stripe = new THREE.Color(rng.pick([0xf2d16b, 0x2fd6c8, 0xf0f0e6, 0xff6d6d]));
+    // hull: lower half of a stretched sphere, hollowed look via a dark inner disc
+    const hull = new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    gb.add(hull, M.compose(0, 0.36, 0, 0, 0, 0, 2.2, 0.36, 0.38), (p) => (p.y > 0.24 ? stripe : hullCol.clone().multiplyScalar(0.8 + p.y * 0.8)));
+    gb.add(new THREE.CircleGeometry(1, 24), M.compose(0, 0.355, 0, -Math.PI / 2, 0, 0, 2.15, 0.33, 1), 0x3a2414);
+    // raised prow and stern
+    for (const sx of [-1, 1]) gb.add(new THREE.ConeGeometry(0.12, 0.5, 6), M.compose(sx * 2.15, 0.48, 0, 0, 0, -sx * 1.0), hullCol);
+    // outrigger float + crossbars
+    gb.add(new THREE.SphereGeometry(1, 12, 6), M.compose(0, 0.16, 1.25, 0, 0, 0, 1.3, 0.13, 0.13), 0xb8874d);
+    for (const x of [-0.7, 0.7]) {
+      gb.add(new THREE.CylinderGeometry(0.035, 0.035, 1.35, 6), M.compose(x, 0.42, 0.62, Math.PI / 2, 0, 0), 0xc9a35a);
+      gb.add(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 5), M.compose(x, 0.28, 1.25), 0xc9a35a);
+    }
+    // paddle lying across
+    gb.add(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 5), M.compose(0.2, 0.46, -0.05, 0, 0.4, Math.PI / 2), 0xd4b07a);
+    gb.add(new THREE.SphereGeometry(1, 8, 6), M.compose(-0.55, 0.46, -0.32, 0, 0.4, 0, 0.32, 0.03, 0.14), 0xd4b07a);
+    return gb.build(false);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Surfboard stuck upright in the sand (~2.1 tall).
+// ---------------------------------------------------------------------------
+export function surfboardGeo(seed: number): THREE.BufferGeometry {
+  return memo('surf' + seed, () => {
+    const rng = new Rng(seed * 59 + 3);
+    const gb = new GeoBuilder();
+    const base = new THREE.Color(rng.pick([0xff6d85, 0x2fd6c8, 0xffd23f, 0x6fd0ff, 0xff8a3a, 0xf4f1e6]));
+    const stripe = new THREE.Color(rng.pick([0xffffff, 0x1d3f6a, 0xff4f6d, 0x2b8a32]));
+    const board = new THREE.SphereGeometry(1, 18, 12);
+    gb.add(board, M.compose(0, 1.0, 0, 0, 0, 0, 0.3, 1.08, 0.05), (p) => (Math.abs(p.y - 1.15) < 0.09 || Math.abs(p.x) < 0.03 ? stripe : base));
+    // fin
+    gb.add(new THREE.BoxGeometry(0.02, 0.18, 0.12), M.compose(0, 0.22, -0.07), 0x222222);
+    return gb.build(false);
+  });
+}
