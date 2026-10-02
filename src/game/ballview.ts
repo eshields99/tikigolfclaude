@@ -2,6 +2,13 @@
 import * as THREE from 'three';
 import { ballDimpleNormal } from '../render/textures';
 import { BALL_R } from '../physics/world';
+import { glowTexture } from '../render/textures';
+
+export const POWER_COLORS: Record<string, [number, number]> = {
+  fire: [0xffb02e, 0xff3d0a],
+  glide: [0xbff8ff, 0x3fd2ff],
+  bounce: [0xc6ff6a, 0x4fd14a],
+};
 
 export interface BallSkin {
   id: string;
@@ -76,6 +83,8 @@ export class BallView {
   private mat: THREE.MeshPhysicalMaterial;
   private trail: Trail;
   private blob: THREE.Mesh;
+  private aura: THREE.Sprite;
+  private power: string | null = null;
   skin: BallSkin = SKINS[0];
 
   constructor(scene: THREE.Object3D) {
@@ -112,6 +121,11 @@ export class BallView {
     this.blob = new THREE.Mesh(bgeo, new THREE.MeshBasicMaterial({ map: bt, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
     this.blob.renderOrder = 2;
     this.blob.visible = false;
+    this.aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.aura.scale.setScalar(1.3);
+    this.aura.visible = false;
+    this.aura.renderOrder = 7;
+    this.group.add(this.aura);
     scene.add(this.group, this.trail.mesh, this.blob);
     this.setSkin(SKINS[0]);
   }
@@ -132,6 +146,24 @@ export class BallView {
     (this.blob.material as THREE.MeshBasicMaterial).opacity = k * 0.9;
   }
 
+  /** Show / hide the power-up aura and switch trail colours. */
+  setPower(p: string | null) {
+    this.power = p;
+    this.aura.visible = !!p;
+    if (p) {
+      const [a, b] = POWER_COLORS[p];
+      (this.aura.material as THREE.SpriteMaterial).color.set(b);
+      this.trail.setColors(a, b);
+    } else this.trail.setColors(this.skin.trail[0], this.skin.trail[1]);
+  }
+
+  /** Per-frame aura flicker. */
+  pulse(t: number) {
+    if (!this.power) return;
+    const k = this.power === 'fire' ? 1.25 + Math.sin(t * 31) * 0.12 + Math.sin(t * 17) * 0.08 : 1.15 + Math.sin(t * 6) * 0.1;
+    this.aura.scale.setScalar(k);
+  }
+
   setSkin(s: BallSkin) {
     this.skin = s;
     this.mat.map?.dispose();
@@ -140,7 +172,7 @@ export class BallView {
     this.mat.emissiveIntensity = s.emissive ? 0.6 : 0;
     this.mat.emissiveMap = s.emissive ? this.mat.map : null;
     this.mat.needsUpdate = true;
-    this.trail.setColors(s.trail[0], s.trail[1]);
+    if (!this.power) this.trail.setColors(s.trail[0], s.trail[1]);
   }
 
   /** Apply physics position and integrate visual spin. */
@@ -175,6 +207,7 @@ export class BallView {
 
   dispose(scene: THREE.Object3D) {
     scene.remove(this.group, this.trail.mesh, this.blob);
+    (this.aura.material as THREE.Material).dispose();
     this.blob.geometry.dispose();
     (this.blob.material as THREE.MeshBasicMaterial).map?.dispose();
     (this.blob.material as THREE.Material).dispose();

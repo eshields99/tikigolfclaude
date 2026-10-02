@@ -22,6 +22,8 @@ export class AimView {
   private tmpM = new THREE.Matrix4();
   private tmpC = new THREE.Color();
   private visibleT = 0;
+  /** Override colour while a power-up is armed. */
+  tint: THREE.Color | null = null;
 
   constructor() {
     const dotGeo = new THREE.CircleGeometry(0.075, 14);
@@ -85,7 +87,7 @@ export class AimView {
    */
   update(ball: THREE.Vector3, dx: number, dz: number, power: number, groundY: (x: number, z: number, fromY: number) => number, ballR: number) {
     this.group.visible = true;
-    const col = powerColor(power, this.tmpC);
+    const col = this.tint ? this.tmpC.copy(this.tint) : powerColor(power, this.tmpC);
     const len = 0.7 + power * 4.6;
     const spacing = 0.3;
     const phase = (sharedUniforms.uTime.value * 1.2) % 1;

@@ -82,6 +82,30 @@ export class Effects {
     this.p.emit({ count: 26, pos: p, spread: 0.1, velSpread: 2.5, up: 3.5, life: [0.4, 0.9], size: [0.06, 0.12], colors: [0xfff3b0, 0xffffff], gravity: 3, drag: 2, shape: 2, additive: true });
   }
 
+  private fireAcc = 0;
+  private glideAcc = 0;
+
+  fireBurst(pos: THREE.Vector3) {
+    this.p.emit({ count: 26, pos, spread: 0.1, velSpread: 2.2, up: 1.5, life: [0.3, 0.7], size: [0.08, 0.18], colors: [0xffd04a, 0xff7a1a, 0xff3a0a], gravity: -1, drag: 2.5, additive: true });
+  }
+
+  fireTrail(pos: THREE.Vector3, dt: number) {
+    this.fireAcc += dt;
+    while (this.fireAcc > 0.012) {
+      this.fireAcc -= 0.012;
+      this.p.emit({ count: 1, pos, spread: 0.07, velSpread: 0.35, up: 1.1, life: [0.25, 0.5], size: [0.16, 0.3], grow: 0.3, colors: [0xffc43a, 0xff6a14, 0xff3a0a], gravity: -2.5, drag: 2, additive: true });
+      if (Math.random() < 0.25) this.p.emit({ count: 1, pos, spread: 0.05, velSpread: 0.6, up: 1.8, life: [0.5, 0.9], size: [0.03, 0.06], colors: [0xffe9a0], gravity: 2, drag: 1, shape: 2, additive: true });
+    }
+  }
+
+  glideTrail(pos: THREE.Vector3, dt: number) {
+    this.glideAcc += dt;
+    while (this.glideAcc > 0.05) {
+      this.glideAcc -= 0.05;
+      this.p.emit({ count: 1, pos: pos.clone().setY(pos.y + 0.1), spread: 0.18, velSpread: 0.25, up: 0.5, life: [0.6, 1.1], size: [0.07, 0.12], colors: [0xffffff, 0xbff8ff, 0x7fe3ff], gravity: 0.6, drag: 1.5, shape: 1, additive: true, alpha: 0.9 });
+    }
+  }
+
   bumper(pos: THREE.Vector3) {
     this.p.emit({ count: 14, pos, spread: 0.1, velSpread: 2.2, up: 1, life: [0.2, 0.45], size: [0.05, 0.1], colors: [0xffd23f, 0xffffff], gravity: 2, drag: 3, shape: 2, additive: true });
   }

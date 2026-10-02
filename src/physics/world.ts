@@ -29,6 +29,10 @@ export class Ball {
   lastBoost = -1;
   /** Highest speed seen since launch (used for camera / effects). */
   peakSpeed = 0;
+  /** Shot modifiers (power-ups); reset when the ball is placed. */
+  rollMul = 1;
+  bouncy = false;
+  sandProof = false;
 
   set(x: number, y: number, z: number) {
     this.x = x; this.y = y; this.z = z;
@@ -47,13 +51,21 @@ export class Ball {
     this.boostCooldown = 0;
     this.teleCooldown = 0;
     this.lastBoost = -1;
+    this.clearMods();
   }
 
-  launch(dx: number, dz: number, speed: number) {
+  clearMods() {
+    this.rollMul = 1;
+    this.bouncy = false;
+    this.sandProof = false;
+  }
+
+  launch(dx: number, dz: number, speed: number, vy = 0) {
     const l = Math.hypot(dx, dz) || 1;
     this.vx = (dx / l) * speed;
     this.vz = (dz / l) * speed;
-    this.vy = 0;
+    this.vy = vy;
+    if (vy > 0) this.grounded = false;
     this.atRest = false;
     this.restTime = 0;
     this.moveTime = 0;
@@ -233,14 +245,15 @@ export class PhysicsWorld {
 
     // ---- rolling resistance ------------------------------------------------
     if (b.grounded) {
-      const s = SURFACES[b.gmat] ?? SURFACES[Mat.Turf];
+      let s = SURFACES[b.gmat] ?? SURFACES[Mat.Turf];
+      if (b.sandProof && b.gmat === Mat.Sand) s = SURFACES[Mat.Turf];
       const nx = b.gnx, ny = b.gny, nz = b.gnz;
       let rvx = b.vx - b.gvx, rvy = b.vy - b.gvy, rvz = b.vz - b.gvz;
       const vn = rvx * nx + rvy * ny + rvz * nz;
       let tx = rvx - vn * nx, ty = rvy - vn * ny, tz = rvz - vn * nz;
       const sp = Math.hypot(tx, ty, tz);
       if (sp > 0) {
-        const dec = (s.rollDecel * ny + s.rollDrag * sp) * dt;
+        const dec = (s.rollDecel * ny + s.rollDrag * sp) * b.rollMul * dt;
         const k = dec >= sp ? 0 : 1 - dec / sp;
         tx *= k; ty *= k; tz *= k;
       }
@@ -361,7 +374,8 @@ export class PhysicsWorld {
       const isGround = c.ny > 0.6;
       if (vn < 0) {
         const impactSpeed = -vn;
-        const e = impactSpeed > s.bounceMin ? s.restitution : 0;
+        let e = impactSpeed > s.bounceMin ? s.restitution : 0;
+        if (b.bouncy && isGround && impactSpeed > 1.6 && !s.hazard) e = Math.max(e, 0.68);
         const jn = -(1 + e) * vn;
         rvx += c.nx * jn; rvy += c.ny * jn; rvz += c.nz * jn;
         // impact friction for walls and hard landings
@@ -524,7 +538,7 @@ export class PhysicsWorld {
     if (grounded && !groundMoving && rs < 0.14) {
       const s = SURFACES[b.gmat] ?? SURFACES[Mat.Turf];
       const slopePull = GRAVITY * Math.sqrt(Math.max(0, 1 - b.gny * b.gny)) * ROLL_FACTOR;
-      if (slopePull < s.rollDecel * b.gny * 0.92 || rs < 0.025) {
+      if (slopePull < s.rollDecel * b.rollMul * b.gny * 0.92 || rs < 0.025) {
         b.restTime += dt;
         if (b.restTime > 0.12) {
           b.atRest = true;

@@ -6,9 +6,9 @@ import { Input } from './input';
 import { AimView, powerColor } from './aim';
 import type { Particles } from '../render/particles';
 import { Effects } from './fxhooks';
-import { HoleSession, type SessionRules, type SessionHooks, type AIPlanner } from './session';
+import { HoleSession, type SessionRules, type SessionHooks, type AIPlanner, type PowerUp } from './session';
 import { Golfer, type AIProfile } from './golfer';
-import { SKINS, type BallSkin } from './ballview';
+import { SKINS, POWER_COLORS, type BallSkin } from './ballview';
 import type { HoleDef } from '../course/types';
 import type { CourseStyle } from '../course/builder';
 import type { Theme } from '../world/decor';
@@ -66,6 +66,11 @@ export class Game {
   onHoleFinished: ((s: HoleSession) => void) | null = null;
   menuMode = false;
   private shake = 0;
+  /** Remaining power-up charges for the current round, and the one armed for the next shot. */
+  powerups: Record<PowerUp, number> = { fire: 0, glide: 0, bounce: 0 };
+  armed: PowerUp | null = null;
+  onPowerupUsed: ((p: PowerUp) => void) | null = null;
+  private puT = 0;
 
   constructor(canvas: HTMLCanvasElement, public ui: UI, quality: Quality) {
     this.stage = new Stage(canvas, quality);
@@ -136,7 +141,34 @@ export class Game {
       this.aim.show(false);
       return;
     }
-    this.session.shoot(this.session.human, s.dx, s.dz, s.power);
+    const pu = this.armed && this.powerups[this.armed] > 0 ? this.armed : null;
+    this.session.shoot(this.session.human, s.dx, s.dz, s.power, pu);
+    if (pu) {
+      this.powerups[pu]--;
+      this.armed = null;
+      this.aim.tint = null;
+      this.onPowerupUsed?.(pu);
+      this.refreshPowerups();
+    }
+  }
+
+  setPowerups(counts: Record<PowerUp, number>) {
+    this.powerups = { ...counts };
+    this.armed = null;
+    this.aim.tint = null;
+    this.refreshPowerups();
+  }
+
+  togglePowerup(p: PowerUp) {
+    this.armed = this.armed === p ? null : this.powerups[p] > 0 ? p : null;
+    this.aim.tint = this.armed ? new THREE.Color(POWER_COLORS[this.armed][1]) : null;
+    if (this.armed) audio.whoosh();
+    this.refreshPowerups();
+  }
+
+  refreshPowerups() {
+    if (this.menuMode) return;
+    this.ui.powerups(this.powerups, this.armed, (p) => this.togglePowerup(p));
   }
 
   toggleOverview() {
@@ -229,6 +261,9 @@ export class Game {
     this.ui.timer(rules.timeLimit ? rules.timeLimit : null);
     this.closeBanner = this.ui.banner({ num: index + 1, name: def.name, par: def.par, tip: def.tip, mode: modeName }) ?? null;
     this.updatePlayersHud();
+    this.armed = null;
+    this.aim.tint = null;
+    this.refreshPowerups();
     audio.startAmbience(this.course.theme);
     audio.music?.play(rules.mode === 'battle' || rules.mode === 'rush' ? 'battle' : this.course.theme === 'volcano' ? 'volcano' : 'play');
     audio.whoosh();
@@ -252,10 +287,14 @@ export class Game {
 
   private makeHooks(): SessionHooks {
     return {
-      hit: (g, power) => {
-        this.fx.hit(g.pos, power, g.view.skin.trail[0]);
+      hit: (g, power, pu) => {
+        this.fx.hit(g.pos, power, pu ? POWER_COLORS[pu][0] : g.view.skin.trail[0]);
+        if (pu === 'fire') this.fx.fireBurst(g.pos);
         if (g.human) {
           audio.putt(power);
+          if (pu === 'fire') audio.powerFire();
+          else if (pu === 'glide') audio.powerGlide();
+          else if (pu === 'bounce') audio.boing(0.8);
           this.rig.beginShot(g.shotYaw);
           this.aim.hide();
           this.ui.hint(null);
@@ -270,6 +309,10 @@ export class Game {
       },
       impact: (g, speed, mat, ground, pos) => {
         if (!ground) this.fx.wallHit(pos, speed);
+        if (g.power === 'bounce' && ground && speed > 1.6) {
+          this.fx.ripple(pos.clone().setY(pos.y + 0.03), 0.9, POWER_COLORS.bounce[0], 0.6);
+          if (g.human) audio.boing(Math.min(1, speed / 6));
+        }
         if (mat === Mat.Sand && ground) this.fx.sandPuff(pos);
         const near = g.human || pos.distanceTo(this.stage.camera.position) < 14;
         if (near) audio.impact(g.human ? speed : speed * 0.5, SURFACES[mat]?.sound ?? 'turf');
@@ -442,6 +485,15 @@ export class Game {
           else this.aim.idle(ballPos, sy, BALL_R, dt);
         } else this.aim.idle(ballPos, sy, BALL_R, dt);
       } else this.aim.hide();
+      // power-up aura & particles
+      this.puT += dt;
+      for (const g of s.golfers) {
+        if (!g.power || g.state !== 'rolling') continue;
+        g.view.pulse(this.stage.time);
+        const p = g.pos;
+        if (g.power === 'fire') this.fx.fireTrail(p, dt);
+        else if (g.power === 'glide' && g.ball.speed > 1) this.fx.glideTrail(p, dt);
+      }
       // trail sparkles + rolling audio
       if (h.state === 'rolling' && h.ball.speed > 4) {
         this.sparkleT += dt;

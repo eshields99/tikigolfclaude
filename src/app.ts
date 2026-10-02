@@ -120,6 +120,10 @@ export class App {
     if (this.game.stage.renderer.quality !== q) this.game.stage.setQuality(q);
   }
 
+  private givePowerups(mode: 'round' | 'practice') {
+    this.game.setPowerups(mode === 'practice' ? { fire: 99, glide: 99, bounce: 99 } : { fire: 1, glide: 1, bounce: 1 });
+  }
+
   private highestUnlocked() {
     let best = 0;
     COURSES.forEach((_, i) => {
@@ -183,6 +187,7 @@ export class App {
     this.courseIdx = courseIdx;
     this.scores = COURSES[courseIdx].holes.map(() => null);
     this.coinsRun = 0;
+    this.givePowerups('round');
     this.playTourHole(holeIdx);
   }
 
@@ -198,6 +203,7 @@ export class App {
   startPractice(courseIdx: number, holeIdx: number) {
     this.mode = 'practice';
     this.courseIdx = courseIdx;
+    this.givePowerups('practice');
     const c = COURSES[courseIdx];
     this.transition('Practice', () => {
       this.ui.showHud({ battle: false, timer: false });
@@ -235,6 +241,7 @@ export class App {
       this.rushTimes[r.id] = 0;
     }
     this.battleHole = 0;
+    this.givePowerups('round');
     audio.music?.play('battle');
     this.ui.matchmaking(this.rivals, 0xffd23f, () => this.playBattleHole(), mode === 'rush' ? 'Rush Rivals' : 'Finding Rivals');
   }

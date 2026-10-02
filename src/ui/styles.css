@@ -735,3 +735,66 @@ input[type='range']::-moz-range-thumb { width: 24px; height: 24px; border-radius
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* power-up tray */
+.pu-tray {
+  position: absolute;
+  right: calc(12px + var(--safe-r));
+  bottom: calc(118px + var(--safe-b));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+.pu {
+  --c1: #ffb02e;
+  --c2: #ff4a12;
+  --edge: #8a2406;
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  border: 3px solid rgba(40, 18, 6, 0.55);
+  background: linear-gradient(180deg, var(--c1), var(--c2));
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.4), inset 0 -5px 0 rgba(0, 0, 0, 0.16), 0 5px 0 var(--edge), 0 10px 16px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.2s;
+  padding: 0;
+}
+.pu svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(40, 18, 6, 0.45)); }
+.pu .n {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  background: #fff8e8;
+  color: var(--wood);
+  border: 2px solid var(--wood2);
+  font-family: var(--display);
+  font-size: 14px;
+  line-height: 18px;
+}
+.pu .lbl {
+  position: absolute;
+  right: 62px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--display);
+  font-size: 15px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 6px rgba(0, 0, 0, 0.4);
+}
+.pu-glide { --c1: #8ff2ff; --c2: #1aa9e0; --edge: #0d5a85; }
+.pu-bounce { --c1: #b8f56a; --c2: #3fae31; --edge: #1f5a1a; }
+.pu:active { transform: translateY(4px); }
+.pu.armed { transform: scale(1.12); box-shadow: 0 0 0 4px #fff, 0 0 22px 6px var(--c1), 0 5px 0 var(--edge); animation: pulse 0.9s ease-in-out infinite; }
+.pu.armed .lbl { opacity: 1; }
+.pu.empty { filter: grayscale(1) brightness(0.75); opacity: 0.7; }

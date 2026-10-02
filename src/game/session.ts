@@ -7,6 +7,7 @@ import { Route, yawOf } from './camera';
 import type { P2 } from '../core/math';
 
 export type GameMode = 'tour' | 'battle' | 'rush' | 'practice';
+export type PowerUp = 'fire' | 'glide' | 'bounce';
 
 export interface SessionRules {
   mode: GameMode;
@@ -15,7 +16,7 @@ export interface SessionRules {
 }
 
 export interface SessionHooks {
-  hit(g: Golfer, power: number): void;
+  hit(g: Golfer, power: number, pu: PowerUp | null): void;
   impact(g: Golfer, speed: number, mat: number, ground: boolean, pos: THREE.Vector3): void;
   hazard(g: Golfer, kind: HazardKind, pos: THREE.Vector3): void;
   reset(g: Golfer): void;
@@ -109,18 +110,35 @@ export class HoleSession {
     return 0.9 + Math.pow(power, 1.08) * 17.6;
   }
 
-  shoot(g: Golfer, dx: number, dz: number, power: number) {
+  shoot(g: Golfer, dx: number, dz: number, power: number, pu: PowerUp | null = null) {
     if (g.state !== 'ready' || this.phase !== 'play') return;
-    const speed = HoleSession.speedFor(power);
-    g.lastRest.set(g.ball.x, g.ball.y, g.ball.z);
-    g.ball.launch(dx, dz, speed);
-    g.ball.grounded = true;
+    let speed = HoleSession.speedFor(power);
+    let vy = 0;
+    const b = g.ball;
+    b.clearMods();
+    if (pu === 'fire') {
+      speed = Math.min(26, speed * 1.38);
+      b.sandProof = true;
+      b.rollMul = 0.8;
+    } else if (pu === 'glide') {
+      b.rollMul = 0.32;
+      b.sandProof = true;
+    } else if (pu === 'bounce') {
+      speed *= 0.92;
+      vy = 3.6 + power * 3.2;
+      b.bouncy = true;
+    }
+    g.lastRest.set(b.x, b.y, b.z);
+    b.launch(dx, dz, speed, vy);
+    if (!vy) b.grounded = true;
     g.strokes++;
     g.state = 'rolling';
     g.shotYaw = yawOf(dx, dz);
+    g.power = pu;
     g.view.resetTrail();
+    g.view.setPower(pu);
     if (g.human) this.aiming = false;
-    this.hooks.hit(g, power);
+    this.hooks.hit(g, power, pu);
   }
 
   /** Start AI planning for golfers that are ready. */
@@ -191,6 +209,8 @@ export class HoleSession {
       if (g.state === 'hazard') {
         g.hazardTimer -= dt;
         if (g.hazardTimer <= 0) {
+          g.power = null;
+          g.view.setPower(null);
           g.placeAt(g.lastRest);
           g.strokes++;
           g.penalties++;
@@ -234,6 +254,8 @@ export class HoleSession {
   }
 
   private onRest(g: Golfer) {
+    g.power = null;
+    g.view.setPower(null);
     if (g.state === 'holed') return; // settled in cup
     g.state = 'ready';
     if (g.strokes >= this.rules.maxStrokes) {

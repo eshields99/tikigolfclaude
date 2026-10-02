@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Ball } from '../physics/world';
 import { BallView, type BallSkin } from './ballview';
+import type { PowerUp } from './session';
 
 export type GolferState = 'waiting' | 'ready' | 'rolling' | 'hazard' | 'holed' | 'out';
 
@@ -28,6 +29,8 @@ export class Golfer {
   aiTimer = 0;
   aiPlan: { dx: number; dz: number; speed: number } | null = null;
   aiThinking = false;
+  /** Power-up active on the current shot. */
+  power: PowerUp | null = null;
 
   constructor(
     public id: string,

@@ -272,6 +272,37 @@ export class UI {
     if (p.innerHTML !== html) p.innerHTML = html;
   }
 
+  powerups(counts: Record<string, number>, armed: string | null, onToggle: (p: 'fire' | 'glide' | 'bounce') => void) {
+    if (!this.hud) return;
+    let tray = this.hud.querySelector('.pu-tray') as HTMLElement | null;
+    if (!tray) {
+      tray = el('div', 'pu-tray');
+      this.hud.append(tray);
+    }
+    const defs: ['fire' | 'glide' | 'bounce', string, string][] = [
+      ['fire', ICON.flame, 'Fire'],
+      ['glide', ICON.feather, 'Glide'],
+      ['bounce', ICON.spring, 'Bounce'],
+    ];
+    const key = JSON.stringify([counts, armed]);
+    if (tray.dataset.key === key) return;
+    tray.dataset.key = key;
+    tray.innerHTML = '';
+    for (const [id, icon, label] of defs) {
+      const n = counts[id] ?? 0;
+      const b = el('button', `pu pu-${id}${armed === id ? ' armed' : ''}${n <= 0 ? ' empty' : ''}`, `${icon}<span class="n">${n > 9 ? '∞' : n}</span><span class="lbl">${label}</span>`);
+      b.setAttribute('aria-label', `${label} power-up, ${n} left`);
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (n <= 0 && armed !== id) return;
+        this.sounds.click();
+        onToggle(id);
+      });
+      tray.append(b);
+    }
+  }
+
   hint(text: string | null) {
     this.hud?.querySelector('.hint')?.remove();
     if (!text || !this.hud) return;
@@ -611,6 +642,7 @@ export class UI {
       ['#12a593', ICON.flag, 'Sink it in few strokes', 'Beat par for stars and coins. A hole-in-one pays big!'],
       ['#2a8de0', ICON.map, 'Look around', 'Tap the map button for an overview. Two-finger drag (or right-drag / Q & E) rotates the camera.'],
       ['#f0365a', ICON.bolt, 'Ramps, boosts & bumpers', 'Ramps launch you over water and lava. Boost pads add speed. Tiki drums bounce you back hard.'],
+      ['#ff7a1a', ICON.flame, 'Power-ups', 'Tap Fire, Glide or Bounce before a shot. Fire adds raw power, Glide slides far across turf and sand, Bounce hops the ball over obstacles. One of each per round.'],
       ['#7a52e0', ICON.swords, 'Tiki Battle', 'Play the same holes at the same time as 3 rivals. Fewest strokes wins — ties go to the fastest.'],
     ];
     const list = el('div', 'howto');

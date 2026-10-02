@@ -327,6 +327,38 @@ export class AudioEngine {
     this.tone('sine', 360, 1500, t, 0.01, 0.3, 0.25);
     this.burst(t, 0.35, 0.3, 'bandpass', 600, 1.5, this.sfxBus, 4000);
   }
+  powerFire() {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.burst(t, 0.6, 0.5, 'bandpass', 400, 0.9, this.sfxBus, 2600);
+    this.tone('sawtooth', 90, 320, t, 0.02, 0.45, 0.14);
+    for (let i = 0; i < 10; i++) this.burst(t + 0.05 + Math.random() * 0.5, 0.012, 0.18, 'highpass', 4000);
+  }
+  powerGlide() {
+    if (!this.ctx) return;
+    const t = this.now;
+    [76, 79, 83, 88].forEach((n, i) => this.tone('sine', 440 * Math.pow(2, (n - 69) / 12), 440 * Math.pow(2, (n - 69) / 12), t + i * 0.05, 0.01, 0.35, 0.12));
+    this.burst(t, 0.5, 0.12, 'highpass', 6000);
+  }
+  boing(v = 1) {
+    if (!this.ctx) return;
+    const t = this.now;
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.09);
+    o.frequency.exponentialRampToValueAtTime(260, t + 0.28);
+    const vib = this.ctx.createOscillator();
+    vib.frequency.value = 28;
+    const vg = this.ctx.createGain();
+    vg.gain.value = 40;
+    vib.connect(vg).connect(o.frequency);
+    o.connect(this.gainEnv(t, 0.005, 0.4 * v, 0.32, this.sfxBus));
+    o.start(t);
+    vib.start(t);
+    o.stop(t + 0.4);
+    vib.stop(t + 0.4);
+  }
   penalty() {
     if (!this.ctx) return;
     const t = this.now + 0.25;

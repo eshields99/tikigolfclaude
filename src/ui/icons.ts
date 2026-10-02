@@ -25,6 +25,9 @@ export const ICON = {
   lock: s('<rect x="5" y="10.5" width="14" height="10" rx="2.2" fill="currentColor"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'),
   check: s('<path d="M4.5 12.5l5 5 10-11"/>'),
   hand: s('<path d="M8 13V5.5a1.6 1.6 0 0 1 3.2 0V11"/><path d="M11.2 10.5V9a1.6 1.6 0 0 1 3.2 0v2"/><path d="M14.4 10.5a1.6 1.6 0 0 1 3.2 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-4.6-2.2L4 15.6a1.6 1.6 0 0 1 2.5-2l1.5 1.8"/>'),
+  flame: s('<path d="M12 2.5c1.2 3.6 5.2 5.6 5.2 10.4a5.2 5.2 0 0 1-10.4 0c0-2.2 1-3.9 2.3-5 .1 1.7.9 2.9 2.3 3.4-.2-3.4-.7-5.9.6-8.8z" fill="currentColor" stroke-width="1.6"/>'),
+  feather: s('<path d="M20.5 3.5C12 4 6 9.5 6 17.5V21"/><path d="M6 17.5c5.5 0 10-3.2 11.6-8.6"/><path d="M8.8 13.4h6.4"/><path d="M11.4 9.6h5.4"/>'),
+  spring: s('<path d="M5 20.5h14M5 3.5h14"/><path d="M7 6.5l10 2.4-10 2.6 10 2.6-10 2.6"/>'),
   clock: s('<circle cx="12" cy="13" r="8"/><path d="M12 9v4.5l3 1.8M9.5 2.5h5"/>'),
 };
 
