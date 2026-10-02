@@ -12,6 +12,8 @@ export class AudioEngine {
   private musicBus!: GainNode;
   private ambBus!: GainNode;
   private comp!: DynamicsCompressorNode;
+  /** Final output node (after the limiter), for metering. */
+  out: AudioNode | null = null;
   private noise!: AudioBuffer;
   private brown!: AudioBuffer;
   private reverb!: ConvolverNode;
@@ -40,18 +42,26 @@ export class AudioEngine {
     const ctx = new AC({ latencyHint: 'interactive' });
     this.ctx = ctx;
     this.comp = ctx.createDynamicsCompressor();
-    this.comp.threshold.value = -14;
-    this.comp.ratio.value = 4;
-    this.comp.attack.value = 0.004;
-    this.comp.release.value = 0.2;
+    this.comp.threshold.value = -16;
+    this.comp.ratio.value = 3.5;
+    this.comp.attack.value = 0.003;
+    this.comp.release.value = 0.25;
+    // brick-wall style limiter so stacked hits and jingles never clip
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.12;
     this.master = ctx.createGain();
-    this.master.gain.value = 0.9;
-    this.master.connect(this.comp).connect(ctx.destination);
+    this.master.gain.value = 0.78;
+    this.master.connect(this.comp).connect(limiter).connect(ctx.destination);
+    this.out = limiter;
     this.sfxBus = ctx.createGain();
     this.musicBus = ctx.createGain();
     this.ambBus = ctx.createGain();
     this.sfxBus.gain.value = this.sfxVol;
-    this.musicBus.gain.value = this.musicVol * 0.55;
+    this.musicBus.gain.value = this.musicVol * 0.68;
     this.ambBus.gain.value = this.sfxVol * 0.9;
     this.sfxBus.connect(this.master);
     this.musicBus.connect(this.master);
@@ -104,7 +114,7 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     this.sfxBus.gain.setTargetAtTime(sfx, t, 0.05);
     this.ambBus.gain.setTargetAtTime(sfx * 0.9, t, 0.05);
-    this.musicBus.gain.setTargetAtTime(music * 0.55, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(music * 0.68, t, 0.05);
   }
 
   get now() {
@@ -222,9 +232,9 @@ export class AudioEngine {
         this.burst(t, 0.02, 0.3 * v, 'highpass', 2500);
         break;
       case 'bumper':
-        this.tone('sine', 260, 640, t, 0.005, 0.12, 0.6);
-        this.tone('sine', 640, 300, t + 0.1, 0.005, 0.16, 0.45);
-        this.tone('sine', 110, 60, t, 0.002, 0.14, 0.8);
+        this.tone('sine', 260, 640, t, 0.005, 0.12, 0.45);
+        this.tone('sine', 640, 300, t + 0.1, 0.005, 0.16, 0.35);
+        this.tone('sine', 110, 60, t, 0.002, 0.14, 0.55);
         break;
       case 'cup':
         this.burst(t, 0.025, 0.4 * v, 'bandpass', 3200, 2);
@@ -254,7 +264,7 @@ export class AudioEngine {
     if (!this.ctx) return;
     const t = this.now;
     // plunk + rattle
-    this.tone('sine', 330, 190, t, 0.002, 0.16, 0.8);
+    this.tone('sine', 330, 190, t, 0.002, 0.16, 0.6);
     this.burst(t, 0.05, 0.4, 'bandpass', 2400, 2);
     let tt = t + 0.08;
     let gap = 0.075;
