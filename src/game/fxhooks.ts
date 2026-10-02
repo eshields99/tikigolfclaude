@@ -45,6 +45,11 @@ export class Effects {
     this.p.emit({ count: Math.min(14, Math.round(speed * 1.2)), pos, spread: 0.05, velSpread: 1.5 + speed * 0.15, life: [0.15, 0.35], size: [0.03, 0.07], colors: [0xfff4c2, 0xffffff], gravity: 4, drag: 4, shape: 2, additive: true });
   }
 
+  landPuff(pos: THREE.Vector3, speed: number) {
+    const n = Math.min(14, Math.round(speed * 1.5));
+    this.p.emit({ count: n, pos, spread: 0.1, velSpread: 0.9 + speed * 0.08, up: 1.4, life: [0.35, 0.7], size: [0.04, 0.08], colors: [0x7ccf45, 0x5cb83a, 0xa8e070], gravity: 9, drag: 1.5, shape: 1 });
+  }
+
   sandPuff(pos: THREE.Vector3) {
     this.p.emit({ count: 14, pos, spread: 0.15, velSpread: 1.2, up: 1.6, life: [0.5, 1.0], size: [0.12, 0.28], grow: 2.2, colors: [0xf3dba2, 0xe8c98a], gravity: 3, drag: 3, alpha: 0.8 });
   }

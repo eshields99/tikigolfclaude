@@ -85,6 +85,8 @@ export class BallView {
   private blob: THREE.Mesh;
   private aura: THREE.Sprite;
   private power: string | null = null;
+  private squashAmt = 0;
+  private squashVel = 0;
   skin: BallSkin = SKINS[0];
 
   constructor(scene: THREE.Object3D) {
@@ -155,6 +157,23 @@ export class BallView {
       (this.aura.material as THREE.SpriteMaterial).color.set(b);
       this.trail.setColors(a, b);
     } else this.trail.setColors(this.skin.trail[0], this.skin.trail[1]);
+  }
+
+  /** Kick the squash-and-stretch spring (hard landings). */
+  squash(amount: number) {
+    this.squashVel -= amount * 14;
+  }
+
+  /** Damped spring for squash & stretch; call every frame. */
+  updateSquash(dt: number) {
+    const k = 260, c = 16;
+    this.squashVel += (-k * this.squashAmt - c * this.squashVel) * dt;
+    this.squashAmt += this.squashVel * dt;
+    if (Math.abs(this.squashAmt) < 1e-4 && Math.abs(this.squashVel) < 1e-3) {
+      this.squashAmt = this.squashVel = 0;
+    }
+    const s = Math.max(-0.3, Math.min(0.3, this.squashAmt));
+    this.group.scale.set(1 - s * 0.5, 1 + s, 1 - s * 0.5);
   }
 
   /** Per-frame aura flicker. */

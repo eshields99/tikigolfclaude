@@ -31,6 +31,23 @@ function starsHtml(n: number, max = 3) {
   return s;
 }
 
+/** Animate any [data-count] number inside root from 0 to its target. */
+export function countUp(root: HTMLElement, ms = 900) {
+  root.querySelectorAll<HTMLElement>('[data-count]').forEach((n) => {
+    const target = +(n.dataset.count ?? 0);
+    const prefix = n.dataset.prefix ?? '';
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const u = Math.min(1, (t - t0) / ms);
+      const e = 1 - Math.pow(1 - u, 3);
+      n.textContent = prefix + Math.round(target * e);
+      if (u < 1) requestAnimationFrame(step);
+    };
+    n.textContent = prefix + '0';
+    setTimeout(() => requestAnimationFrame(step), 350);
+  });
+}
+
 export interface PlayerRow {
   id: string;
   name: string;
@@ -422,7 +439,7 @@ export class UI {
       'beforeend',
       `<div class="result-head"><div class="big${data.titleColor === '#ffffff' ? '' : ' outline'}" style="color:${data.titleColor === '#ffffff' ? 'var(--wood)' : data.titleColor}">${data.title}</div><div class="sub">${data.strokes} stroke${data.strokes === 1 ? '' : 's'} on a par ${par}</div></div>
        <div class="result-stars">${starsHtml(data.stars)}</div>
-       <div class="reward"><div class="chip">${COIN}<span>+${data.coins}</span></div><div class="chip">Total ${total} <span style="opacity:.75">(${diff === 0 ? 'E' : diff > 0 ? '+' + diff : diff})</span></div></div>
+       <div class="reward"><div class="chip">${COIN}<span data-count="${data.coins}" data-prefix="+">+${data.coins}</span></div><div class="chip">Total ${total} <span style="opacity:.75">(${diff === 0 ? 'E' : diff > 0 ? '+' + diff : diff})</span></div></div>
        <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">HOLE</th><th>PAR</th><th>YOU</th></tr>${rows}</table>`,
     );
     const btns = el('div', 'btn-row');
@@ -431,6 +448,7 @@ export class UI {
     sheet.append(btns);
     back.append(sheet);
     this.root.append(back);
+    countUp(sheet);
   }
 
   courseResult(data: { course: CourseInfo; scores: number[]; stars: number; coins: number; best: boolean; nextUnlocked?: string }, h: { again(): void; next?: () => void; menu(): void }) {
@@ -446,7 +464,7 @@ export class UI {
       'beforeend',
       `<div class="result-head"><div class="big">${diff < 0 ? 'Island Champion!' : diff === 0 ? 'Right on Par!' : 'Island Complete!'}</div><div class="sub">${total} strokes · ${diff === 0 ? 'even par' : diff > 0 ? `+${diff} over par` : `${-diff} under par`}${data.best ? ' · NEW BEST!' : ''}</div></div>
        <div class="result-stars">${starsHtml(rating)}</div>
-       <div class="reward"><div class="chip star">${STAR}<span>${data.stars}/${maxStars}</span></div><div class="chip">${COIN}<span>+${data.coins}</span></div></div>
+       <div class="reward"><div class="chip star">${STAR}<span>${data.stars}/${maxStars}</span></div><div class="chip">${COIN}<span data-count="${data.coins}" data-prefix="+">+${data.coins}</span></div></div>
        <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">HOLE</th><th>PAR</th><th>YOU</th></tr>${data.course.holes
          .map((hd, i) => `<tr><td>${i + 1}. ${hd.name}</td><td>${hd.par}</td><td><span class="sbadge ${scoreClass(data.scores[i], hd.par)}">${data.scores[i]}</span></td></tr>`)
          .join('')}</table>
@@ -461,6 +479,7 @@ export class UI {
     sheet.append(col);
     back.append(sheet);
     this.root.append(back);
+    countUp(sheet);
   }
 
   // ------------------------------------------------------------------------ battle
@@ -508,13 +527,14 @@ export class UI {
       <table class="scorecard"><tr><th style="text-align:left;padding-left:12px">GOLFER</th><th>${data.timed ? 'TIME' : 'STROKES'}</th></tr>${r
         .map((p, i) => `<tr class="${p.me ? 'cur' : ''}"><td>${i + 1}. ${p.me ? 'You' : p.name}</td><td><b>${data.timed ? p.total.toFixed(1) + 's' : p.total}</b></td></tr>`)
         .join('')}</table>
-      <div class="reward"><div class="chip">${TROPHY}<span>${data.trophies >= 0 ? '+' : ''}${data.trophies}</span></div><div class="chip">${COIN}<span>+${data.coins}</span></div></div>`,
+      <div class="reward"><div class="chip">${TROPHY}<span>${data.trophies >= 0 ? '+' : ''}${data.trophies}</span></div><div class="chip">${COIN}<span data-count="${data.coins}" data-prefix="+">+${data.coins}</span></div></div>`,
     );
     const row = el('div', 'btn-row');
     row.append(this.button('MENU', 'wood', h.menu, ICON.home), this.button('REMATCH', 'pink', h.again, ICON.swords));
     sheet.append(row);
     back.append(sheet);
     this.root.append(back);
+    countUp(sheet);
   }
 
   // ------------------------------------------------------------------------ pause / settings / shop / help

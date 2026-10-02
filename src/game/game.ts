@@ -317,6 +317,10 @@ export class Game {
       },
       impact: (g, speed, mat, ground, pos) => {
         if (!ground) this.fx.wallHit(pos, speed);
+        if (ground && speed > 2.6) {
+          g.view.squash(Math.min(0.3, speed * 0.035));
+          if (mat === Mat.Turf || mat === Mat.Glide) this.fx.landPuff(pos, speed);
+        }
         if (g.power === 'bounce' && ground && speed > 1.6) {
           this.fx.ripple(pos.clone().setY(pos.y + 0.03), 0.9, POWER_COLORS.bounce[0], 0.6);
           if (g.human) audio.boing(Math.min(1, speed / 6));
