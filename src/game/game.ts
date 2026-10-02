@@ -588,29 +588,36 @@ class Planner implements AIPlanner {
   private jobs: { g: Golfer; s: HoleSession; search: ShotSearch }[] = [];
   private rng = new Rng(Date.now() & 0xffff);
   private hole: unknown = null;
-  private worker: Worker | null = null;
+  private workers: Worker[] = [];
   private holeKey = '';
   private nextId = 1;
+  private turn = 0;
   private pending = new Map<number, { g: Golfer; s: HoleSession }>();
 
   constructor() {
+    // one planning worker per spare core (up to three rivals plan in parallel)
+    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
     try {
-      this.worker = new AIWorker();
-      this.worker.onmessage = (e: MessageEvent<WorkerPlanResult>) => this.onResult(e.data);
-      this.worker.onerror = () => this.dropWorker();
+      for (let i = 0; i < n; i++) {
+        const w = new AIWorker();
+        w.onmessage = (e: MessageEvent<WorkerPlanResult>) => this.onResult(e.data);
+        w.onerror = () => this.dropWorkers();
+        this.workers.push(w);
+      }
     } catch {
-      this.worker = null;
+      this.dropWorkers();
     }
   }
 
-  private dropWorker() {
-    this.worker?.terminate();
-    this.worker = null;
-    // re-plan anything that was waiting on the worker on the main thread
-    for (const { g, s } of this.pending.values()) {
-      g.aiThinking = false;
-      void s;
-    }
+  private get worker() {
+    return this.workers.length ? this.workers[this.turn++ % this.workers.length] : null;
+  }
+
+  private dropWorkers() {
+    for (const w of this.workers) w.terminate();
+    this.workers = [];
+    // anything still waiting on a worker gets re-planned on the main thread
+    for (const { g } of this.pending.values()) g.aiThinking = false;
     this.pending.clear();
   }
 
@@ -622,9 +629,9 @@ class Planner implements AIPlanner {
       this.nav = new NavField(hole);
       this.hole = hole;
     }
-    if (this.worker && holeKey) {
+    if (holeKey) {
       const [course, index] = holeKey.split(':');
-      this.worker.postMessage({ type: 'hole', course, index: +index });
+      for (const w of this.workers) w.postMessage({ type: 'hole', course, index: +index });
     }
   }
 
@@ -642,11 +649,12 @@ class Planner implements AIPlanner {
     if (pw && pw.fire > 0 && left > 24 && this.rng.next() < 0.5) pu = 'fire';
     else if (pw && pw.glide > 0 && left > 12 && left < 26 && this.rng.next() < 0.3) pu = 'glide';
     const angles = Math.round(20 + quality * 16), powers = Math.round(5 + quality * 4);
-    if (this.worker && this.holeKey) {
+    const worker = this.holeKey ? this.worker : null;
+    if (worker) {
       const id = this.nextId++;
       this.pending.set(id, { g, s });
       const msg: WorkerPlanMsg = { type: 'plan', id, hole: this.holeKey, x: b.x, y: b.y, z: b.z, t0, angles, powers, pu, skill, seed: (this.rng.next() * 1e9) | 0 };
-      this.worker.postMessage(msg);
+      worker.postMessage(msg);
       return;
     }
     const search = new ShotSearch(s.hole.world, this.nav, b.x, b.y, b.z, t0, { angles, powers }, pu, noiseFor(skill, this.rng, 4));
