@@ -9,6 +9,8 @@ export interface Settings {
   quality: Quality | 'auto';
   haptics: boolean;
   guide: boolean;
+  /** Classic controls: drag anywhere to aim, two fingers to look around. */
+  aimAnywhere: boolean;
 }
 
 export interface SaveData {
@@ -37,7 +39,7 @@ const defaults = (): SaveData => ({
   stars: {},
   courseBest: {},
   stats: { holes: 0, aces: 0, battles: 0, wins: 0, rushBest: 0 },
-  settings: { music: 0.6, musicOn: true, sfx: 0.85, quality: 'auto', haptics: true, guide: true },
+  settings: { music: 0.6, musicOn: true, sfx: 0.85, quality: 'auto', haptics: true, guide: true, aimAnywhere: false },
   tutorialDone: false,
 });
 

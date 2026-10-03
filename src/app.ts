@@ -132,6 +132,7 @@ export class App {
     audio.setVolumes(s.sfx, s.music);
     this.game.haptics = s.haptics;
     this.game.showGuide = s.guide;
+    this.game.aimAnywhere = s.aimAnywhere === true;
     const q = s.quality === 'auto' ? detectQuality() : s.quality;
     if (this.game.stage.renderer.quality !== q) this.game.stage.setQuality(q);
   }

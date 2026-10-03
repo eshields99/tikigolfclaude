@@ -18,7 +18,7 @@ import type { Quality } from '../render/renderer';
 import { NavField, ShotSearch, jitterPlan, noiseFor, type NavHole } from './ai';
 import AIWorker from './ai.worker?worker&inline';
 import type { WorkerPlanMsg, WorkerPlanResult } from './ai.worker';
-import { Rng } from '../core/math';
+import { Rng, clamp } from '../core/math';
 import type { UI } from '../ui/ui';
 import { audio } from '../audio/audio';
 
@@ -63,6 +63,8 @@ export class Game {
   haptics = true;
   showGuide = true;
   private overviewOn = false;
+  /** The "touch your ball to aim" reminder shows on the first look-around swipe only. */
+  private panHintShown = false;
   private closeBanner: (() => void) | null = null;
   private labels = new Map<Golfer, HTMLElement>();
   private planner = new Planner();
@@ -94,7 +96,17 @@ export class Game {
       },
       onAimMove: (a) => this.updateAimFromDrag(a.dx, a.dy, a.x, a.y),
       onAimEnd: (a, cancelled) => this.endAim(a.dx, a.dy, cancelled),
+      isOnBall: (x, y) => this.isOnBall(x, y),
       onOrbit: (dx, dy) => this.rig.orbit(dx, dy),
+      onPan: (dx, dy) => {
+        if (!this.canLook()) return;
+        if (dx || dy) this.panHint();
+        this.rig.panBy(dx, dy);
+      },
+      onPanEnd: (vx, vy) => {
+        if (this.canLook()) this.rig.fling(vx, vy);
+      },
+      onRecenter: () => this.recenterView(),
       onZoom: (f) => this.rig.zoomBy(f),
       onTap: () => {
         if (this.rig.mode === 'intro') this.rig.skipIntro();
@@ -104,12 +116,54 @@ export class Game {
     const resize = () => {
       const w = window.innerWidth, h = window.innerHeight;
       this.stage.resize(w, h);
-      this.rig.setAspect(w / h);
+      this.rig.setAspect(w / h, h);
     };
     window.addEventListener('resize', resize);
     resize();
     this.ui.onOverview = () => this.toggleOverview();
+    this.ui.onRecenter = () => this.recenterView();
     requestAnimationFrame(this.frame);
+  }
+
+  /** Classic controls: drag anywhere to aim (two fingers look around instead). */
+  get aimAnywhere() {
+    return this.input.aimAnywhere;
+  }
+  set aimAnywhere(v: boolean) {
+    this.input.aimAnywhere = v;
+  }
+
+  private aimHint() {
+    return this.input.aimAnywhere ? 'Pull back & release|Drag anywhere · pull further for power' : 'Pull back & release|Drag from your ball · swipe to look around';
+  }
+
+  // --------------------------------------------------------------------------- looking around
+  /** Whether a screen point is on (or comfortably near) the player's ball. */
+  private isOnBall(x: number, y: number) {
+    if (!this.session) return false;
+    const v = this.session.human.pos.clone().project(this.stage.camera);
+    if (v.z > 1) return false;
+    const sx = ((v.x + 1) / 2) * window.innerWidth, sy = ((1 - v.y) / 2) * window.innerHeight;
+    const r = clamp(0.14 * Math.min(window.innerWidth, window.innerHeight), 56, 90);
+    return Math.hypot(x - sx, y - sy) <= r;
+  }
+
+  private canLook() {
+    return !this.paused && !this.menuMode && !!this.session && this.rig.canPan;
+  }
+
+  /** First swipe of the session: remind players who used to drag anywhere where aiming starts. */
+  private panHint() {
+    if (this.panHintShown || this.input.aimAnywhere || this.overviewOn || !this.session?.canAim()) return;
+    this.panHintShown = true;
+    this.ui.toast('Touch your ball to aim · swipe to look around', 'info');
+  }
+
+  /** Back to the default view behind the ball (closes the map if it is open). */
+  recenterView() {
+    if (!this.session || this.menuMode) return;
+    if (this.overviewOn) this.toggleOverview();
+    else this.rig.resetView();
   }
 
   // --------------------------------------------------------------------------- aiming
@@ -262,6 +316,20 @@ export class Game {
       this.session.ai = this.planner;
     }
     this.rig.route = this.session.route;
+    this.rig.setBounds(hole.bounds);
+    // a look-around left over water or sand settles back onto the nearest bit of course
+    const onCourse = (x: number, z: number) => hole.surfaceY(x, z, 60) !== -Infinity;
+    this.rig.courseSnap = (x, z) => {
+      if (onCourse(x, z)) return null;
+      for (let r = 1.5; r <= 18; r += 1.5) {
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+          if (onCourse(px, pz)) return r <= 1.5 ? null : [px, pz];
+        }
+      }
+      return null;
+    };
     this.rig.snap();
     this.rig.startIntro(this.session.route, hole.cup, hole.tee);
     const modeName = rules.mode === 'battle' ? 'BATTLE' : rules.mode === 'rush' ? 'RUSH' : rules.mode === 'practice' ? 'PRACTICE' : '';
@@ -364,7 +432,7 @@ export class Game {
       reset: (g) => {
         if (g.human) {
           this.ui.hudStrokes(g.strokes, this.session!.hole.def.par);
-          this.rig.setAim();
+          if (!this.overviewOn) this.rig.setAim();
         }
         this.updatePlayersHud();
       },
@@ -449,8 +517,8 @@ export class Game {
       },
       rested: (g) => {
         if (g.human) {
-          this.rig.setAim();
-          this.ui.hint(g.strokes === 0 ? 'Pull back & release|Drag anywhere · pull further for power' : null);
+          if (!this.overviewOn) this.rig.setAim();
+          this.ui.hint(g.strokes === 0 ? this.aimHint() : null);
         }
       },
       finished: (s) => {
@@ -509,7 +577,7 @@ export class Game {
         this.rig.setAim();
         this.closeBanner?.();
         this.closeBanner = null;
-        this.ui.hint('Pull back & release|Drag anywhere · pull further for power');
+        this.ui.hint(this.aimHint());
       }
       this.planner.update(waiting ? 8 : this.stage.renderer.quality === 'high' ? 4 : 2.5);
       s.update(dt);
@@ -522,6 +590,15 @@ export class Game {
         const b = this.stage.island?.heightAt(x, z) ?? -Infinity;
         return Math.max(a, b);
       };
+      // the map closes itself when play takes the camera (a blowhole launch, holing out…)
+      if (this.overviewOn && this.rig.mode !== 'overview') this.overviewOn = false;
+      // held arrow / WASD keys look around
+      this.rig.holding = this.input.pressed;
+      const kp = this.input.keyPan;
+      if ((kp.x || kp.y) && this.canLook()) {
+        const v = window.innerHeight * 0.9 * dtReal;
+        this.rig.panBy(-kp.x * v, -kp.y * v);
+      }
       // camera follows a rival while we wait
       let camBall = ballPos;
       if (h.done && s.phase === 'play') {
@@ -538,7 +615,9 @@ export class Game {
         airborne: !h.ball.grounded && h.state === 'rolling',
         groundY,
       });
-      this.stage.focus.copy(ballPos);
+      // torches and fireflies gather where the player is looking
+      this.stage.focus.copy(this.rig.panned || this.overviewOn ? this.rig.target : ballPos);
+      this.ui.recenter(this.overviewOn || (this.rig.mode === 'aim' && this.rig.lookingAround && !h.done));
       // aim visuals
       if (h.state === 'ready' && s.phase === 'play' && this.rig.introDone && !this.overviewOn) {
         const sy = (x: number, z: number, fromY: number) => hole.surfaceY(x, z, fromY);

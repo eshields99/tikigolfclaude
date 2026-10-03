@@ -72,6 +72,7 @@ export class UI {
   sounds: UISounds = { click: () => {} };
   onPause: () => void = () => {};
   onOverview: () => void = () => {};
+  onRecenter: () => void = () => {};
 
   constructor() {
     this.root = el('div');
@@ -234,7 +235,10 @@ export class UI {
        <div class="par-strokes"><div class="ps"><span>PAR</span><b class="par">3</b></div><div class="ps strokes"><span>STROKES</span><b class="st">0</b></div></div>`,
     );
     const btns = el('div', 'hud-buttons');
-    btns.append(this.button('', 'round glass', () => this.onPause(), ICON.pause), this.button('', 'round glass', () => this.onOverview(), ICON.map));
+    const recenter = this.button('', 'round glass recenter gone', () => this.onRecenter(), ICON.locate);
+    recenter.setAttribute('aria-label', 'Back to your ball');
+    btns.append(this.button('', 'round glass', () => this.onPause(), ICON.pause), this.button('', 'round glass', () => this.onOverview(), ICON.map), recenter);
+    this.hudEls.recenter = recenter;
     top.append(card, btns);
     hud.append(top);
     if (opts.timer) {
@@ -254,6 +258,12 @@ export class UI {
     this.hudEls.hname = card.querySelector('.hname')!;
     this.hudEls.par = card.querySelector('.par')!;
     this.hudEls.st = card.querySelector('.st')!;
+  }
+
+  /** Show the "back to your ball" button while the view is panned away (cheap to call every frame). */
+  recenter(on: boolean) {
+    const b = this.hudEls.recenter;
+    if (b && b.classList.contains('gone') === on) b.classList.toggle('gone', !on);
   }
 
   hudHole(i: { num: number; count: number; name: string; par: number; course: string }) {
@@ -612,7 +622,7 @@ export class UI {
     });
     const gfx = el('div', 'setting', `<div class="lbl">${ICON.eye}<span>Graphics</span></div>`);
     gfx.append(seg);
-    const toggle = (label: string, icon: string, key: 'haptics' | 'guide' | 'musicOn') => {
+    const toggle = (label: string, icon: string, key: 'haptics' | 'guide' | 'musicOn' | 'aimAnywhere') => {
       const row = el('div', 'setting', `<div class="lbl">${icon}<span>${label}</span></div>`);
       const t = el('div', 'toggle' + (s[key] ? ' on' : ''));
       t.addEventListener('click', () => {
@@ -639,7 +649,7 @@ export class UI {
       onReset();
     });
     reset.append(rb);
-    body.append(toggle('Music', ICON.music, 'musicOn'), slider('Music volume', ICON.music, 'music'), slider('Sound FX', ICON.sound, 'sfx'), gfx, toggle('Vibration', ICON.bolt, 'haptics'), toggle('Aim guide', ICON.target, 'guide'), reset);
+    body.append(toggle('Music', ICON.music, 'musicOn'), slider('Music volume', ICON.music, 'music'), slider('Sound FX', ICON.sound, 'sfx'), gfx, toggle('Vibration', ICON.bolt, 'haptics'), toggle('Aim guide', ICON.target, 'guide'), toggle('Aim from anywhere', ICON.hand, 'aimAnywhere'), reset);
     sheet.append(close, body);
     back.append(sheet);
     this.root.append(back);
@@ -692,9 +702,9 @@ export class UI {
     const sheet = el('div', 'sheet panel', `<div class="plank">How to Play</div>`);
     const close = this.button('', 'round pink close', () => { back.remove(); onClose(); }, ICON.close);
     const rows = [
-      ['#f5a21f', ICON.hand, 'Pull back & release', 'Drag anywhere on the screen away from where you want to shoot. Pull further for more power, let go to putt.'],
+      ['#f5a21f', ICON.hand, 'Pull back & release', 'Touch your ball and drag away from where you want to shoot. Pull further for more power, let go to putt.'],
       ['#12a593', ICON.flag, 'Sink it in few strokes', 'Beat par for stars and coins. A hole-in-one pays big!'],
-      ['#2a8de0', ICON.map, 'Look around', 'Tap the map button for an overview. Two-finger drag (or right-drag / Q & E) rotates the camera.'],
+      ['#2a8de0', ICON.locate, 'Look around', 'Swipe anywhere off your ball to scout the hole, pinch to zoom, and use two fingers (or right-drag / Q & E) to rotate. Tap the crosshair to jump back to your ball, or the map for an overview. Prefer dragging anywhere to aim? Turn on Aim from anywhere in Settings.'],
       ['#f0365a', ICON.bolt, 'Ramps, boosts & bumpers', 'Ramps launch you over water and lava. Boost pads add speed. Tiki drums bounce you back hard.'],
       ['#ff7a1a', ICON.flame, 'Power-ups', 'Tap Fire, Glide or Bounce before a shot. Fire adds raw power, Glide slides far across turf and sand, Bounce hops the ball over obstacles. One of each per round.'],
       ['#7a52e0', ICON.swords, 'Tiki Battle', 'Play the same holes at the same time as 3 rivals. Fewest strokes wins — ties go to the fastest.'],
