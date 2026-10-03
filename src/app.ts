@@ -118,7 +118,17 @@ export class App {
     requestAnimationFrame(loop);
   }
 
+  /** Flip the soundtrack on/off, persist it and return the new state. */
+  private toggleMusic() {
+    const s = this.save.data.settings;
+    s.musicOn = !s.musicOn;
+    this.save.persist();
+    audio.setMusicEnabled(s.musicOn);
+    return s.musicOn;
+  }
+
   private applySettings(s: Settings) {
+    audio.setMusicEnabled(s.musicOn !== false);
     audio.setVolumes(s.sfx, s.music);
     this.game.haptics = s.haptics;
     this.game.showGuide = s.guide;
@@ -154,12 +164,14 @@ export class App {
       tour: () => this.ui.showCourses(COURSES, this.save, 'Island Tour', (i) => this.unlocked(i), (i) => this.startTour(i, 0), () => this.showMenu()),
       battle: () => this.startBattle('battle'),
       rush: () => this.startBattle('rush'),
+      // practice is a sandbox: every island and hole is open regardless of stars
       practice: () =>
-        this.ui.showCourses(COURSES, this.save, 'Practice', (i) => this.unlocked(i), (i) =>
+        this.ui.showCourses(COURSES, this.save, 'Practice', () => ({ ok: true, need: '' }), (i) =>
           this.ui.showHoleSelect(COURSES[i], this.save, (h) => this.startPractice(i, h), () => this.showMenu()), () => this.showMenu()),
       shop: () => this.ui.shop(this.save, (sk) => this.game.setSkin(sk), () => this.showMenu()),
       settings: () => this.openSettings(() => this.showMenu()),
       help: () => this.ui.howTo(() => {}),
+      toggleMusic: () => this.toggleMusic(),
     });
   }
 
@@ -434,7 +446,9 @@ export class App {
           this.game.restartHole();
         });
       },
-      settings: () => this.openSettings(),
+      settings: (after) => this.openSettings(after),
+      musicOn: () => this.save.data.settings.musicOn,
+      toggleMusic: () => this.toggleMusic(),
       quit: () => {
         this.resume();
         this.transition('Back to the beach', () => this.showMenu());

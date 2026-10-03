@@ -131,14 +131,27 @@ export class UI {
   }
 
   // ------------------------------------------------------------------------ main menu
-  showMenu(save: Save, h: { tour(): void; battle(): void; rush(): void; practice(): void; shop(): void; settings(): void; help(): void }) {
+  /** Round on/off music button; onToggle returns the new state. */
+  musicButton(on: boolean, onToggle: () => boolean, cls = 'round glass') {
+    const b = this.button('', cls, () => {
+      const now = onToggle();
+      b.innerHTML = now ? ICON.music : ICON.musicOff;
+      b.setAttribute('aria-label', now ? 'Turn music off' : 'Turn music on');
+      b.classList.toggle('off', !now);
+    }, on ? ICON.music : ICON.musicOff);
+    b.setAttribute('aria-label', on ? 'Turn music off' : 'Turn music on');
+    b.classList.toggle('off', !on);
+    return b;
+  }
+
+  showMenu(save: Save, h: { tour(): void; battle(): void; rush(): void; practice(): void; shop(): void; settings(): void; help(): void; toggleMusic(): boolean }) {
     this.clear();
     const d = save.data;
     const m = el('div', 'menu');
     const top = el('div', 'topbar');
     const wallet = el('div', 'wallet', `<div class="chip">${COIN}<span>${d.coins}</span></div><div class="chip star">${STAR}<span>${save.totalStars}</span></div><div class="chip">${TROPHY}<span>${d.trophies}</span></div>`);
     const tr = el('div', 'wallet');
-    tr.append(this.button('', 'round glass', h.settings, ICON.gear));
+    tr.append(this.musicButton(d.settings.musicOn, h.toggleMusic), this.button('', 'round glass', h.settings, ICON.gear));
     top.append(wallet, tr);
     const center = el('div', 'center', `<div class="logo"><div class="mark">${TIKI_MARK}</div><div class="word">TIKI GOLF</div><div class="ribbon">ISLAND ADVENTURES</div></div>`);
     const bottom = el('div', 'center');
@@ -538,16 +551,22 @@ export class UI {
   }
 
   // ------------------------------------------------------------------------ pause / settings / shop / help
-  pauseMenu(h: { resume(): void; restart(): void; settings(): void; quit(): void }) {
+  pauseMenu(h: { resume(): void; restart(): void; settings(after: () => void): void; quit(): void; musicOn(): boolean; toggleMusic(): boolean }) {
     const back = el('div', 'sheet-backdrop');
     const sheet = el('div', 'sheet panel', `<div class="plank">Paused</div>`);
     const col = el('div', 'btn-col');
     col.style.marginTop = '20px';
     const close = () => back.remove();
+    const face = (on: boolean) => `${on ? ICON.music : ICON.musicOff}<span>${on ? 'MUSIC: ON' : 'MUSIC: OFF'}</span>`;
+    const music = this.button('', 'wood wide', () => {
+      music.innerHTML = face(h.toggleMusic());
+    }, face(h.musicOn()));
     col.append(
       this.button('RESUME', 'green wide', () => { close(); h.resume(); }, ICON.play),
       this.button('RESTART HOLE', 'blue wide', () => { close(); h.restart(); }, ICON.restart),
-      this.button('SETTINGS', 'wood wide', () => { h.settings(); }, ICON.gear),
+      music,
+      // the settings sheet can also flip the music, so re-read it when that closes
+      this.button('SETTINGS', 'wood wide', () => { h.settings(() => (music.innerHTML = face(h.musicOn()))); }, ICON.gear),
       this.button('QUIT TO MENU', 'pink wide', () => { close(); h.quit(); }, ICON.home),
     );
     sheet.append(col);
@@ -593,7 +612,7 @@ export class UI {
     });
     const gfx = el('div', 'setting', `<div class="lbl">${ICON.eye}<span>Graphics</span></div>`);
     gfx.append(seg);
-    const toggle = (label: string, icon: string, key: 'haptics' | 'guide') => {
+    const toggle = (label: string, icon: string, key: 'haptics' | 'guide' | 'musicOn') => {
       const row = el('div', 'setting', `<div class="lbl">${icon}<span>${label}</span></div>`);
       const t = el('div', 'toggle' + (s[key] ? ' on' : ''));
       t.addEventListener('click', () => {
@@ -620,7 +639,7 @@ export class UI {
       onReset();
     });
     reset.append(rb);
-    body.append(slider('Music', ICON.music, 'music'), slider('Sound FX', ICON.sound, 'sfx'), gfx, toggle('Vibration', ICON.bolt, 'haptics'), toggle('Aim guide', ICON.target, 'guide'), reset);
+    body.append(toggle('Music', ICON.music, 'musicOn'), slider('Music volume', ICON.music, 'music'), slider('Sound FX', ICON.sound, 'sfx'), gfx, toggle('Vibration', ICON.bolt, 'haptics'), toggle('Aim guide', ICON.target, 'guide'), reset);
     sheet.append(close, body);
     back.append(sheet);
     this.root.append(back);

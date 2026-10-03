@@ -30,7 +30,7 @@ further for more power, release to putt. Drag back near your start point to canc
   total strokes wins, ties go to whoever holed out first. Wins earn trophies, and rivals get
   tougher as your trophy count grows.
 - **Rush**: a race. The first ball in the cup wins the hole, strokes don't matter.
-- **Practice**: any unlocked hole, unlimited power-ups, no scoring.
+- **Practice**: any hole on any island, no unlocking needed, unlimited power-ups, no scoring.
 
 Power-ups (one of each per round): **Fire** adds launch power and ignores sand, **Glide**
 cuts rolling resistance so the ball slides much further, **Bounce** lofts the ball so it
@@ -115,4 +115,5 @@ Graphics quality defaults to Auto (Medium on phones, High on desktop) and steps 
 frame rate stays under about 32 fps. Low turns off post-processing, Medium and Low thin out
 the vegetation, use a coarser terrain grid and skip minor shadow casters.
 
+The music can be switched off from the main menu (note button), the pause menu or Settings.
 Progress, coins, balls and settings are stored in `localStorage`.

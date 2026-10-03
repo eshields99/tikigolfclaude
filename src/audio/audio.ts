@@ -29,6 +29,8 @@ export class AudioEngine {
   private crackleT = 0;
   sfxVol = 0.85;
   musicVol = 0.6;
+  /** Music on/off switch (independent of the volume slider). */
+  musicEnabled = true;
   unlocked = false;
 
   /** Must be called from a user gesture. */
@@ -105,6 +107,13 @@ export class AudioEngine {
     this.rollSrc.start();
     this.music = new Music(this, ctx, this.musicBus, this.reverbSend);
     this.unlocked = true;
+  }
+
+  setMusicEnabled(on: boolean) {
+    this.musicEnabled = on;
+    if (!this.music) return;
+    if (on) this.music.resume();
+    else this.music.stop();
   }
 
   setVolumes(sfx: number, music: number) {
@@ -547,7 +556,7 @@ export class AudioEngine {
 }
 
 // ------------------------------------------------------------------------------------ music
-type Mood = 'menu' | 'play' | 'battle' | 'volcano';
+type Mood = 'menu' | 'play' | 'battle' | 'volcano' | 'night';
 
 const CHORDS: Record<string, number[]> = {
   C: [60, 64, 67], Am: [57, 60, 64], F: [53, 57, 60], G: [55, 59, 62], Dm: [50, 53, 57], Em: [52, 55, 59], E7: [52, 56, 59], Bb: [58, 62, 65],
@@ -559,6 +568,7 @@ const UKE: Record<string, number[]> = {
 const PROG_A = ['C', 'Am', 'F', 'G', 'C', 'Am', 'Dm', 'G'];
 const PROG_B = ['F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'C'];
 const PROG_V = ['Am', 'F', 'G', 'Em', 'Am', 'F', 'E7', 'E7'];
+const PROG_N = ['F', 'C', 'Dm', 'Am', 'Bb', 'F', 'Bb', 'C'];
 
 class Music {
   private timer = 0;
@@ -579,13 +589,27 @@ class Music {
     this.gain.connect(rev);
   }
 
+  private stopTimer = 0;
+  /** Mood requested by the game, remembered while music is switched off. */
+  private wanted: Mood = 'menu';
+
+  private level(m: Mood) {
+    return m === 'play' || m === 'volcano' || m === 'night' ? 0.75 : 1;
+  }
+
   play(mood: Mood) {
-    if (this.playing && mood === this.mood) return;
+    this.wanted = mood;
+    if (!this.a.musicEnabled) return;
+    if (this.stopTimer) {
+      // a fade-out was in progress: cancel it and keep the scheduler running
+      window.clearTimeout(this.stopTimer);
+      this.stopTimer = 0;
+    } else if (this.playing && mood === this.mood) return;
     this.mood = mood;
-    this.bpm = mood === 'battle' ? 118 : mood === 'volcano' ? 96 : mood === 'menu' ? 104 : 100;
+    this.bpm = mood === 'battle' ? 118 : mood === 'volcano' ? 96 : mood === 'night' ? 88 : mood === 'menu' ? 104 : 100;
     const t = this.ctx.currentTime;
     this.gain.gain.cancelScheduledValues(t);
-    this.gain.gain.setTargetAtTime(mood === 'play' || mood === 'volcano' ? 0.75 : 1, t, 0.6);
+    this.gain.gain.setTargetAtTime(this.level(mood), t, 0.6);
     if (!this.playing) {
       this.playing = true;
       this.step = 0;
@@ -595,23 +619,32 @@ class Music {
     }
   }
 
+  /** Restart whatever the game last asked for (after music is switched back on). */
+  resume() {
+    this.play(this.wanted);
+  }
+
   stop() {
-    if (!this.playing) return;
+    if (!this.playing || this.stopTimer) return;
     const t = this.ctx.currentTime;
+    this.gain.gain.cancelScheduledValues(t);
     this.gain.gain.setTargetAtTime(0, t, 0.4);
-    window.setTimeout(() => {
+    this.stopTimer = window.setTimeout(() => {
       window.clearInterval(this.timer);
       this.playing = false;
+      this.stopTimer = 0;
     }, 1200);
   }
 
   duck(on: boolean) {
+    if (!this.playing || this.stopTimer) return;
     const t = this.ctx.currentTime;
-    this.gain.gain.setTargetAtTime(on ? 0.25 : this.mood === 'play' || this.mood === 'volcano' ? 0.75 : 1, t, 0.25);
+    this.gain.gain.setTargetAtTime(on ? 0.25 : this.level(this.mood), t, 0.25);
   }
 
   private prog() {
     if (this.mood === 'volcano') return PROG_V;
+    if (this.mood === 'night') return PROG_N;
     return this.section % 2 === 0 ? PROG_A : PROG_B;
   }
 
@@ -677,15 +710,16 @@ class Music {
     const chord = CHORDS[chordName];
     const mood = this.mood;
     const full = mood === 'menu' || mood === 'battle';
+    const calm = mood === 'night';
     // --- percussion
-    if (s % 8 === 0) a.tone('sine', 120, 45, t, 0.002, 0.18, mood === 'battle' ? 0.55 : 0.4, g);
+    if (calm ? s === 0 : s % 8 === 0) a.tone('sine', 120, 45, t, 0.002, 0.18, mood === 'battle' ? 0.55 : calm ? 0.3 : 0.4, g);
     if (s === 6 || s === 14) {
       // clave / woodblock
       a.tone('sine', 1650, 1600, t, 0.001, 0.04, 0.14, g);
       a.burst(t, 0.01, 0.06, 'highpass', 3000, 1, g);
     }
     // shaker 16ths with accents
-    if (full || s % 2 === 0) a.burst(t, 0.035, s % 4 === 2 ? 0.07 : 0.035, 'highpass', 7000, 0.8, g);
+    if (full || (calm ? s % 4 === 2 : s % 2 === 0)) a.burst(t, 0.035, s % 4 === 2 ? (calm ? 0.04 : 0.07) : 0.035, 'highpass', 7000, 0.8, g);
     // bongos on phrase ends
     if (bar % 4 === 3 && s >= 10 && s % 2 === 0) a.tone('sine', s % 4 === 0 ? 420 : 320, 200, t, 0.002, 0.09, 0.18, g);
     // --- bass (root on 1, syncopated 2&, 5th on 3)

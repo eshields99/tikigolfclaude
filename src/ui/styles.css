@@ -852,3 +852,7 @@ input[type='range']::-moz-range-thumb { width: 24px; height: 24px; border-radius
 @media (min-width: 1080px) {
   .cards { justify-content: center; padding: 26px 24px 20px; }
 }
+
+/* music toggle in its off state */
+.btn.round.off { opacity: 0.8; }
+.btn.round.off svg { color: #ffb4b4; }

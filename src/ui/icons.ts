@@ -16,6 +16,7 @@ export const ICON = {
   sound: s('<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>'),
   mute: s('<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>'),
   music: s('<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5" fill="currentColor"/><circle cx="17.5" cy="16" r="2.5" fill="currentColor"/>'),
+  musicOff: s('<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5" fill="currentColor"/><circle cx="17.5" cy="16" r="2.5" fill="currentColor"/><path d="M3 3l18 18" stroke-width="2.8"/>'),
   help: s('<circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.5-2.7 4"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/>'),
   ball: s('<circle cx="12" cy="12" r="8.5"/><circle cx="9.5" cy="9.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="8.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14.8" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="11" cy="12.8" r=".9" fill="currentColor" stroke="none"/><circle cx="8.6" cy="15" r=".9" fill="currentColor" stroke="none"/><circle cx="12.6" cy="16" r=".9" fill="currentColor" stroke="none"/>'),
   flag: s('<path d="M6 21V3.5"/><path d="M6 4h11l-2.5 4L17 12H6" fill="currentColor"/>'),

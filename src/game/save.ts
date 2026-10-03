@@ -3,6 +3,8 @@ import type { Quality } from '../render/renderer';
 
 export interface Settings {
   music: number; // 0..1
+  /** Soundtrack on/off (the volume slider is kept separately). */
+  musicOn: boolean;
   sfx: number;
   quality: Quality | 'auto';
   haptics: boolean;
@@ -35,7 +37,7 @@ const defaults = (): SaveData => ({
   stars: {},
   courseBest: {},
   stats: { holes: 0, aces: 0, battles: 0, wins: 0, rushBest: 0 },
-  settings: { music: 0.6, sfx: 0.85, quality: 'auto', haptics: true, guide: true },
+  settings: { music: 0.6, musicOn: true, sfx: 0.85, quality: 'auto', haptics: true, guide: true },
   tutorialDone: false,
 });
 
