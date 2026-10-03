@@ -334,7 +334,7 @@ export const blowholeBluff: HoleDef = {
       // the tide pool's rim, the islet and the causeway drop straight into the water; so does the
       // sea side of the ledge
       open: [
-        subtract(circle(bbVent[0], bbVent[1], 4.25), box(1.5, 4.5, 3.0, 0.2)),
+        circle(bbVent[0], bbVent[1], 4.25),
         path(bbLedgePts.slice(1, 5).map(([x, z]) => [x - 1.15, z] as P2), 0.5),
       ],
       baseBottom: -1.4,

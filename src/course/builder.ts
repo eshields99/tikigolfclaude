@@ -520,7 +520,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
   }
 
   // ---------------------------------------------------------------- physics world
-  const staticMesh = tb.build(1);
+  const staticMesh = tb.build(0.5);
   world.static = staticMesh;
   world.cup = { x: cupPos.x, y: cupY, z: cupPos.z, r: CUP_R, depth: CUP_DEPTH };
   for (const hz of def.hazards ?? []) world.hazards.push({ sdf: hz.shape.f, y: hz.y, kind: hz.kind });

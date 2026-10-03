@@ -119,12 +119,15 @@ export class Effects {
   }
 
   private spiritAcc = 0;
-  /** Glowing spirit lights streaming behind a ball travelling through a tunnel. */
+  /** A glowing spirit orb (the swallowed ball) streaming lights behind it through a tunnel. */
   spiritTrail(pos: THREE.Vector3, color: number, dt: number) {
     this.spiritAcc += dt;
-    while (this.spiritAcc > 0.012) {
-      this.spiritAcc -= 0.012;
-      this.p.emit({ count: 1, pos, spread: 0.12, velSpread: 0.35, up: 0.2, life: [0.35, 0.7], size: [0.12, 0.26], grow: 0.2, colors: [color, 0xffffff], gravity: 0, drag: 2, additive: true });
+    while (this.spiritAcc > 0.01) {
+      this.spiritAcc -= 0.01;
+      // the orb itself: short-lived, big and bright so it reads as one light
+      this.p.emit({ count: 1, pos, spread: 0.02, velSpread: 0, life: [0.06, 0.08], size: [0.55, 0.6], colors: [0xffffff], gravity: 0, drag: 0, additive: true, alpha: 0.9 });
+      this.p.emit({ count: 1, pos, spread: 0.02, velSpread: 0, life: [0.08, 0.1], size: [1.0, 1.1], colors: [color], gravity: 0, drag: 0, additive: true, alpha: 0.55 });
+      this.p.emit({ count: 1, pos, spread: 0.15, velSpread: 0.4, up: 0.2, life: [0.4, 0.8], size: [0.12, 0.26], grow: 0.2, colors: [color, 0xffffff], gravity: 0, drag: 2, additive: true });
     }
   }
 
@@ -156,7 +159,7 @@ export class Effects {
 
   /** A wind streak whipping across a gusty ledge. */
   windStreak(pos: THREE.Vector3, vel: THREE.Vector3) {
-    this.p.emit({ count: 1, pos, spread: 0.05, vel, velSpread: 0.3, life: [0.35, 0.6], size: [0.025, 0.045], colors: [0xffffff, 0xd8ecff], gravity: 0, drag: 0.2, shape: 2, alpha: 0.7 });
+    this.p.emit({ count: 1, pos, spread: 0.05, vel, velSpread: 0.3, life: [0.45, 0.8], size: [0.12, 0.18], colors: [0xffffff, 0xd8ecff], gravity: 0, drag: 0.2, shape: 2, alpha: 0.65 });
   }
 
   /** Ball dropping into a creek. */

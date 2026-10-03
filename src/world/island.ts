@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import type { HoleBuild } from '../course/builder';
 import { noise, smoothstep } from '../core/math';
+import { segmentDist } from '../core/sdf';
 import type { EnvPreset } from './environment';
 import { sandTextures, grassTextures } from '../render/textures';
 
@@ -157,6 +158,11 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
   group.add(mesh);
 
   // ---- bake height texture for the ocean (R: height mapped from [-5, 3]) ----
+  // bridges over open water have no rock base, so the sea must not treat them as shore
+  const bridgeZones = hole.def.pieces.flatMap((p) => p.bridges ?? []).map((b) => {
+    const ax = b.from[0], az = b.from[1], bx = b.to[0], bz = b.to[1], hw = b.width / 2 + 0.75;
+    return (x: number, z: number) => segmentDist(x, z, ax, az, bx, bz) < hw;
+  });
   const T = 256;
   const data = new Uint8Array(T * T * 4);
   for (let j = 0; j < T; j++)
@@ -165,7 +171,7 @@ export function buildIsland(hole: HoleBuild, _preset: EnvPreset, opts: { volcani
       let h = heightAt(x, z);
       // course rock bases stand in the water
       const fd = fp.f(x, z);
-      if (fd < 0.55) h = Math.max(h, 0.6);
+      if (fd < 0.55 && !bridgeZones.some((inside) => inside(x, z))) h = Math.max(h, 0.6);
       const v = Math.max(0, Math.min(1, (h + 5) / 8));
       const o = (j * T + i) * 4;
       data[o] = Math.round(v * 255);

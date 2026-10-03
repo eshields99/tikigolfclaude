@@ -141,6 +141,8 @@ export interface Zone2D {
 export interface BoostZone extends Zone2D { dx: number; dz: number; speed: number; id: number }
 export interface FlowZone extends Zone2D {
   fx: number; fz: number; strength: number;
+  /** Optional bounds [minX, minZ, maxX, maxZ] checked before the (costly) distance field. */
+  bb?: [number, number, number, number];
   /** Optional ceiling that varies with position (a creek's water surface plus a margin). */
   top?: (x: number, z: number) => number;
   /** Optional spatially varying current (a winding creek): writes the flow velocity at (x, z). */
@@ -351,8 +353,9 @@ export class PhysicsWorld {
     let inFlow = false, flowX = 0, flowZ = 0, flowK = 0;
     for (const f of this.flows) {
       if (b.y < f.yMin || b.y > f.yMax) continue;
-      if (f.sdf(b.x, b.z) > 0) continue;
+      if (f.bb && (b.x < f.bb[0] || b.z < f.bb[1] || b.x > f.bb[2] || b.z > f.bb[3])) continue;
       if (f.top && b.y > f.top(b.x, b.z)) continue;
+      if (f.sdf(b.x, b.z) > 0) continue;
       flowX = f.fx;
       flowZ = f.fz;
       if (f.field) {

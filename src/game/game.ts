@@ -649,7 +649,7 @@ export class Game {
       }
       if (k > 0.1) {
         const b = gu.zone.b;
-        const n = Math.random() < k * dt * 40 ? 1 : 0;
+        const n = Math.floor(k * dt * 70 + Math.random());
         for (let j = 0; j < n; j++) {
           for (let tries = 0; tries < 6; tries++) {
             const x = b[0] + Math.random() * (b[2] - b[0]), z = b[1] + Math.random() * (b[3] - b[1]);

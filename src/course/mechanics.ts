@@ -267,16 +267,17 @@ export function buildGust(ctx: ObstacleContext, o: GustDef): GustFx {
       void main(){
         float along = dot(vP, uDir);
         float across = dot(vP, vec2(-uDir.y, uDir.x));
-        float lane = floor(across * 1.6);
+        // short thin streaks racing downwind, packed in many lanes
+        float lane = floor(across * 3.0);
         float h = h11(lane);
-        float s = fract((along - uT * (7.0 + h * 5.0)) * 0.16 + h);
-        float dash = smoothstep(0.0, 0.05, s) * smoothstep(0.42, 0.12, s);
-        float laneMask = smoothstep(0.5, 0.12, abs(fract(across * 1.6) - 0.5));
+        float s = fract((along - uT * (8.0 + h * 6.0)) * 0.42 + h * 7.0);
+        float dash = smoothstep(0.0, 0.04, s) * smoothstep(0.3, 0.1, s);
+        float laneMask = smoothstep(0.5, 0.4, abs(fract(across * 3.0) - 0.5)) * step(0.35, h11(lane + 17.0));
         // faint chevrons always show which way the wind blows
         float chev = fract(along * 0.5 - abs(fract(across * 0.5) - 0.5) * 0.8 - uT * 0.15);
         float arrows = smoothstep(0.0, 0.06, chev) * smoothstep(0.2, 0.1, chev) * 0.11;
         float edge = smoothstep(0.0, 0.6, vEdge);
-        float a = (dash * laneMask * uS * 0.75 + arrows * (1.0 - uS * 0.6) + uS * 0.07) * edge;
+        float a = (dash * laneMask * uS * 0.9 + arrows * (1.0 - uS * 0.6) + uS * 0.04) * edge;
         gl_FragColor = vec4(vec3(0.85, 0.95, 1.0) * (1.0 + uS * 0.6), a);
         #include <colorspace_fragment>
       }`,
@@ -399,7 +400,7 @@ export function buildStreams(def: HoleDef, world: PhysicsWorld, group: THREE.Gro
     const channel = sdfPath(st.path, st.width);
     const surface: HeightFn = typeof st.surface === 'number' ? ((v: number) => () => v)(st.surface) : st.surface;
     const field = pathFlowField(st.path, st.speed, 1.4);
-    world.flows.push({ sdf: channel.f, yMin: -20, yMax: 100, top: (x, z) => surface(x, z) + 0.12, fx: 0, fz: 0, strength: st.strength ?? 2.6, field });
+    world.flows.push({ sdf: channel.f, bb: [channel.b[0], channel.b[1], channel.b[2], channel.b[3]], yMin: -20, yMax: 100, top: (x, z) => surface(x, z) + 0.12, fx: 0, fz: 0, strength: st.strength ?? 2.6, field });
     out.push({ def: st, channel, surface, field });
 
     const region = st.pool ? union(channel, st.pool) : channel;

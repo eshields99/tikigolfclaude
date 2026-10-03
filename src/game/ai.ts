@@ -339,8 +339,8 @@ export class ShotSearch {
       const spread = Math.min(0.05, 0.5 / d);
       for (const k of [-1, 0, 1]) {
         const ang = base + k * spread;
-        for (let p = 1; p <= 14; p++) {
-          const pw = p / 14;
+        for (let p = 1; p <= 12; p++) {
+          const pw = p / 12;
           this.queue.push({ ang, p: pw, dx: Math.cos(ang), dz: Math.sin(ang), speed: SPEED_MIN + Math.pow(pw, 1.08) * (SPEED_MAX - SPEED_MIN) });
         }
       }

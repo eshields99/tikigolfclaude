@@ -397,7 +397,7 @@ export class AudioEngine {
     f.frequency.linearRampToValueAtTime(380, t + 1.9);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.3 * v, t + 0.5);
+    g.gain.linearRampToValueAtTime(0.48 * v, t + 0.5);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1);
     this.noiseSrc(t, 2.2).connect(f).connect(g).connect(this.ambBus);
     this.tone('sine', 880, 1180, t + 0.2, 0.4, 1.0, 0.02 * v, this.ambBus);

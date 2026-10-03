@@ -58,12 +58,12 @@ export function makeLiquid(region: SDF, y: number, kind: 'water' | 'lava', flow:
     mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      uniforms: { uTime: sharedUniforms.uTime, uFlow: { value: new THREE.Vector2(flow[0], flow[1]) }, tN: { value: waterNormal() }, tFoam: { value: foamTexture() } },
+      uniforms: { uTime: sharedUniforms.uTime, uNight: sharedUniforms.uNight, uFlow: { value: new THREE.Vector2(flow[0], flow[1]) }, tN: { value: waterNormal() }, tFoam: { value: foamTexture() } },
       vertexShader: /* glsl */ `
         attribute float aEdge; varying float vEdge; varying vec3 vW;
         void main(){ vEdge = aEdge; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime; uniform vec2 uFlow; uniform sampler2D tN; uniform sampler2D tFoam;
+        uniform float uTime, uNight; uniform vec2 uFlow; uniform sampler2D tN; uniform sampler2D tFoam;
         varying float vEdge; varying vec3 vW;
         void main(){
           vec2 f = uFlow * uTime;
@@ -73,13 +73,15 @@ export function makeLiquid(region: SDF, y: number, kind: 'water' | 'lava', flow:
           vec3 V = normalize(cameraPosition - vW);
           float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
           vec3 col = mix(vec3(0.12, 0.72, 0.68), vec3(0.03, 0.42, 0.55), smoothstep(0.0, 3.0, vEdge));
-          col = mix(col, vec3(0.75, 0.92, 1.0), fres * 0.5);
+          col = mix(col, mix(vec3(0.02, 0.2, 0.28), vec3(0.01, 0.08, 0.16), smoothstep(0.0, 3.0, vEdge)), uNight);
+          col = mix(col, mix(vec3(0.75, 0.92, 1.0), vec3(0.25, 0.4, 0.7), uNight), fres * 0.5);
           float c = texture2D(tFoam, vW.xz * 0.15 - f * 0.1).r;
-          col += vec3(0.5, 0.9, 0.9) * c * 0.25;
+          col += mix(vec3(0.5, 0.9, 0.9) * 0.25, vec3(0.1, 0.6, 0.7) * 0.35, uNight) * c;
           float foamN = texture2D(tFoam, vW.xz * 0.3 - f * 0.25).g;
           float foam = smoothstep(0.55, 0.0, vEdge + (foamN - 0.5) * 0.4);
           float streaks = smoothstep(0.62, 0.9, texture2D(tFoam, vW.xz * vec2(0.25, 0.25) - f * 0.6).g) * (length(uFlow) > 0.01 ? 0.6 : 0.0);
-          col = mix(col, vec3(1.0), clamp(foam + streaks, 0.0, 1.0) * 0.85);
+          // bioluminescent foam at night
+          col = mix(col, mix(vec3(1.0), vec3(0.35, 1.0, 0.95) * 1.8, uNight), clamp(foam + streaks, 0.0, 1.0) * 0.85);
           gl_FragColor = vec4(col, mix(0.82, 0.95, smoothstep(0.0, 2.0, vEdge)));
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
