@@ -53,9 +53,10 @@ a risky short way and a hero shot.
 - **Tiki Tubes**: three colour-coded tiki heads swallow your ball and spit it out across the
   lagoon. Teal is easy but lands you on the long west path, amber hides behind a spinning totem,
   and magenta sits in an alcove you can only reach with a bank shot, but rolls you down to the cup.
-- **Blowhole Bluff**: settle your ball in the blowhole and the geyser fires it up the bluff next
-  to the cup (too hard and you're in the tide pool), climb the narrow ledge while the wind god
-  blows balls off the edge, or take the long switchback.
+- **Blowhole Bluff**: the narrow ledge from the tee climbs the sea cliff in two stages; wait on
+  the balcony for a lull, or the wind god blows you off the edge. Line up on the causeway and
+  settle into the blowhole for a geyser ride to the cup (too hard and you're in the tide pool),
+  or take the long walled switchback.
 - **Moonlight Gauntlet**: thread the Moon Tiki's spinning guardian for a shortcut onto the funnel
   green, cross the inlet on a rail-less boardwalk between gusts, or take the long causeway loop.
 

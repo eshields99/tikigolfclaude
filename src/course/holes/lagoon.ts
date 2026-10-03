@@ -272,102 +272,101 @@ export const tikiTubes: HoleDef = {
 
 // ------------------------------------------------------------------------------------------------
 // 3. Blowhole Bluff (par 4)
-// The cup sits on a moonlit bluff. Three ways up: thread the causeway into the blowhole and ride the
-// geyser straight up to the green (too hard and you're in the tide pool), climb the narrow sea
-// ledge where the wind god blows balls off the edge, or take the long walled switchback.
+// The cup sits on a moonlit bluff. Straight ahead of the tee a narrow ledge climbs the sea cliff:
+// one firm putt gets you up, but the wind god blows balls off the open edge, so wait for a lull.
+// Line up on the causeway and settle into the blowhole and the geyser fires you up next to the
+// cup (too hard and you're in the tide pool). Or take the long walled switchback round the east.
 // ------------------------------------------------------------------------------------------------
-const bbVent: P2 = [1.5, 1.4];
-const bbShelf = box(2, 6.6, 8.8, 7.0, 0, 1.0);
+const bbVent: P2 = [2.8, 1.4];
+const bbTeeBox = box(-6.0, 11.8, 2.4, 2.2, 0, 0.8);
+const bbShelf = box(3.9, 6.6, 7.2, 7.0, 0, 1.0);
 const bbPoolRing = circle(bbVent[0], bbVent[1], 4.0);
 const bbIslet = circle(bbVent[0], bbVent[1], 1.9);
-const bbCauseway = box(1.5, 4.5, 0.5, 1.5);
-const bbBluff = box(3, -13.8, 7.6, 4.6, 0, 1.2);
+const bbCauseway = box(bbVent[0], 4.5, 0.5, 1.5);
+const bbBluff = box(0.6, -14.2, 9.6, 4.6, 0, 1.2);
+// the ledge climbs in two stages with a flat balcony halfway (a place to wait out the wind)
 const bbLedgePts: P2[] = [
-  [-6.0, 7.4],
-  [-8.9, 5.0],
-  [-9.6, -1.0],
-  [-7.4, -8.6],
-  [-5.2, -10.2],
-  [-3.2, -11.6],
+  [-6.58, 11.4],
+  [-6.95, 1.8],
+  [-7.05, 0.2],
+  [-7.36, -9.6],
 ];
-const bbLedge = path(bbLedgePts, 2.3);
-const bbLedgeH = routeHeight(bbLedgePts, [0.9, 0.9, 2.4, 4.0, 4.6, 4.6]);
+const bbBalcony = circle(-7.3, 1.0, 1.7);
+const bbLedge = union(path([[-6.6, 10.8], [-7.4, -10.6]], 2.0, { smooth: false }), bbBalcony);
+const bbLedgeH = routeHeight(bbLedgePts, [0.9, 2.55, 2.55, 4.2]);
 const bbRampPts: P2[] = [
-  [8.2, 9.8],
-  [12.9, 8.9],
-  [14.2, 3.6],
-  [13.4, -2.2],
-  [11.0, -5.8],
-  [12.8, -9.8],
-  [11.4, -11.4],
-  [8.4, -13.8],
+  [9.4, 9.6],
+  [13.4, 8.6],
+  [14.6, 3.2],
+  [13.8, -2.4],
+  [11.6, -6.0],
+  [13.2, -10.2],
+  [11.6, -12.0],
+  [8.6, -14.2],
 ];
 const bbRamp = path(bbRampPts, 3.0);
-const bbRampH = routeHeight(bbRampPts, [0.9, 0.9, 1.7, 2.6, 3.4, 4.3, 4.6, 4.6]);
-const bbCup: P2 = [2.4, -14.6];
+const bbRampH = routeHeight(bbRampPts, [0.9, 0.9, 1.6, 2.4, 3.1, 3.9, 4.2, 4.2]);
+const bbCup: P2 = [-3.2, -15.6];
 const bbHeight = (x: number, z: number) => {
-  if (bbBluff.f(x, z) < 0.05) return 4.6 + bowl(bbCup[0], bbCup[1], 2.4, 0.2)(x, z);
-  if (bbShelf.f(x, z) < 0.05 || bbIslet.f(x, z) < 0.3 || bbCauseway.f(x, z) < 0.05) return 0.9 + funnel(bbVent[0], bbVent[1], 1.8, 0.6)(x, z);
-  if (bbLedge.f(x, z) < bbRamp.f(x, z)) return bbLedgeH(x, z);
+  if (bbBluff.f(x, z) < 0.05) return 4.2 + bowl(bbCup[0], bbCup[1], 2.4, 0.2)(x, z);
+  if (bbLedge.f(x, z) < 0.05) return bbLedgeH(x, z);
+  if (bbShelf.f(x, z) < 0.05 || bbTeeBox.f(x, z) < 0.05 || bbIslet.f(x, z) < 0.3 || bbCauseway.f(x, z) < 0.05) return 0.9 + funnel(bbVent[0], bbVent[1], 1.8, 0.6)(x, z);
   return bbRampH(x, z);
 };
-const bbGust = box(-9.0, 0.6, 2.4, 5.4, 0.12);
+const bbGust = box(-7.5, -4.6, 2.3, 4.6, -0.03);
 
 export const blowholeBluff: HoleDef = {
   id: 'll3',
   name: 'Blowhole Bluff',
   par: 4,
-  tee: [2.4, 12.2],
+  tee: [-6.0, 12.4],
   cup: bbCup,
-  tip: 'Settle it in the blowhole and ride the geyser up!',
+  tip: 'Climb the ledge in a lull, or ride the blowhole up!',
   route: [
-    [2.4, 12.2],
-    [1.6, 5.5],
-    [bbVent[0], bbVent[1]],
-    [2.0, -10.0],
+    [-6.0, 12.4],
+    [-6.7, 4],
+    [-7.2, -8],
+    [-5.6, -13],
     bbCup,
   ],
   pieces: [
     {
-      shape: union(subtract(bbShelf, bbPoolRing), bbIslet, bbCauseway, bbLedge, bbRamp, bbBluff),
+      shape: union(bbTeeBox, subtract(bbShelf, bbPoolRing), bbIslet, bbCauseway, bbLedge, bbRamp, bbBluff),
       height: bbHeight,
       // the tide pool's rim, the islet and the causeway drop straight into the water; so does the
-      // sea side of the ledge
-      open: [
-        circle(bbVent[0], bbVent[1], 4.25),
-        path(bbLedgePts.slice(1, 5).map(([x, z]) => [x - 1.15, z] as P2), 0.5),
-      ],
+      // sea side of the ledge where the wind blows
+      open: [circle(bbVent[0], bbVent[1], 4.25), box(-8.3, -4.6, 0.45, 4.4, -0.03)],
       baseBottom: -1.4,
     },
   ],
   obstacles: [
-    { type: 'geyser', at: bbVent, target: [3.4, -10.6], apex: 9.5, period: 3.4, burst: 0.4 },
-    { type: 'gust', shape: bbGust, dir: Math.PI, strength: 2.6, period: 4.4, blow: 2.0, source: [-6.4, -2.4] },
-    { type: 'bumper', at: [-1.6, -15.6] },
-    { type: 'bumper', at: [6.6, -15.4] },
+    { type: 'geyser', at: bbVent, target: [-1.0, -11.8], apex: 9.5, period: 3.4, burst: 0.4 },
+    { type: 'gust', shape: bbGust, dir: Math.PI, strength: 2.8, period: 4.4, blow: 2.0, source: [-3.6, 0.6] },
+    { type: 'bumper', at: [-7.0, -17.2] },
+    { type: 'bumper', at: [1.6, -16.8] },
   ],
   pools: [{ shape: subtract(bbPoolRing, circle(bbVent[0], bbVent[1], 1.95), bbCauseway), y: 0.5 }],
   decor: [
-    { type: 'lanterns', pts: [[-3.4, 14.4], [2.4, 14.6], [7.6, 14.4]], seed: 21 },
-    { type: 'lanterns', pts: [[-5.2, -7.6], [-2.6, -8.2], [1.0, -8.4]], seed: 22 },
-    { type: 'lanterns', pts: [[15.6, 6.4], [16.0, 0.4], [15.0, -4.6]], seed: 23 },
-    { type: 'lanterns', pts: [[4.4, -8.4], [8.0, -8.0]], seed: 24 },
-    { type: 'tiki', at: [-1.6, -19.8], rot: 0.3, scale: 1.6, variant: 2 },
-    { type: 'tiki', at: [6.8, -19.6], rot: -0.3, scale: 1.4, variant: 0 },
-    { type: 'torch', at: [-2.0, 2.2] },
-    { type: 'torch', at: [5.0, 2.4] },
-    { type: 'rock', at: [4.6, -0.6], r: 0.8 },
-    { type: 'rock', at: [-1.4, -0.2], r: 0.7 },
-    { type: 'rock', at: [-1.8, 3.2], r: 0.55 },
-    { type: 'bungalow', at: [-20, 10], rot: 1.9 },
-    { type: 'bungalow', at: [-21, -12], rot: 1.2 },
-    { type: 'bungalow', at: [24, -6], rot: -1.6 },
+    { type: 'lanterns', pts: [[-2.6, 15.2], [-2.6, 10.0]], seed: 21 },
+    { type: 'lanterns', pts: [[-5.0, -8.4], [-1.6, -8.6], [2.4, -8.6]], seed: 22 },
+    { type: 'lanterns', pts: [[16.2, 6.4], [16.6, 0.4], [15.6, -4.6]], seed: 23 },
+    { type: 'lanterns', pts: [[5.2, -8.6], [8.6, -8.2]], seed: 24 },
+    { type: 'tiki', at: [-3.4, -20.8], rot: 0.3, scale: 1.6, variant: 2 },
+    { type: 'tiki', at: [4.6, -20.6], rot: -0.3, scale: 1.4, variant: 0 },
+    { type: 'torch', at: [0.2, 2.2] },
+    { type: 'torch', at: [5.4, 2.4] },
+    { type: 'rock', at: [6.6, -0.6], r: 0.8 },
+    { type: 'rock', at: [-0.8, -0.2], r: 0.7 },
+    { type: 'rock', at: [-0.6, 3.6], r: 0.55 },
+    { type: 'bungalow', at: [-22, 8], rot: 1.9 },
+    { type: 'bungalow', at: [-22, -12], rot: 1.2 },
+    { type: 'bungalow', at: [25, -6], rot: -1.6 },
   ],
   island: {
     margin: 5,
     mounds: [
-      [3, -15, 12, 3.8],
-      [-4, -6, 5, 2.2],
+      [1, -16, 12, 3.8],
+      [-3, -5, 5, 2.4],
       [7, -6, 5, 2.4],
     ],
     carve: [{ shape: bbPoolRing, y: 0.0 }],
