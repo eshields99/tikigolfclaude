@@ -6,9 +6,11 @@ import { Rng } from '../src/core/math';
 
 const skills = (process.argv[2] ?? '0.4,0.6,0.8').split(',').map(Number);
 const runs = +(process.argv[3] ?? 4);
+const only = process.argv[4];
 const rng = new Rng(7);
 for (const c of COURSES) {
   for (const def of c.holes) {
+    if (only && !def.id.startsWith(only)) continue;
     const hole = buildHole(def, c.style);
     hole.world.terrainHeight = null;
     const nav = new NavField(hole);
@@ -24,7 +26,7 @@ for (const c of COURSES) {
           while (!s.done) s.step(1000);
           const p = jitterPlan(s.best!, skill, rng);
           strokes++;
-          const res = simulateShot(hole.world, pos.x, pos.y, pos.z, p.dx, p.dz, p.speed, t);
+          const res = simulateShot(hole.world, pos.x, pos.y, pos.z, p.dx, p.dz, p.speed, t + p.lag);
           t += res.time + 2.5;
           if (res.holed) break;
           if (res.hazard) { strokes++; continue; }

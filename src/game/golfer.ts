@@ -27,7 +27,7 @@ export class Golfer {
   label: HTMLElement | null = null;
   shotYaw = 0;
   aiTimer = 0;
-  aiPlan: { dx: number; dz: number; speed: number; pu?: PowerUp | null } | null = null;
+  aiPlan: { dx: number; dz: number; speed: number; pu?: PowerUp | null; lag?: number } | null = null;
   /** Rival power-up charges (shared across a match's holes). */
   aiPowerups: Record<PowerUp, number> | null = null;
   aiThinking = false;

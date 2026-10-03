@@ -1,10 +1,12 @@
 // Shared materials with small shader injections for a polished stylized look.
 import * as THREE from 'three';
-import { grassTextures, stoneTextures, woodTextures, sandTextures } from './textures';
+import { grassTextures, stoneTextures, woodTextures, sandTextures, pebbleTextures } from './textures';
 
 export const sharedUniforms = {
   uTime: { value: 0 },
   uWind: { value: new THREE.Vector2(1, 0.3) },
+  /** 1 on night islands: water, lanterns and vents glow. */
+  uNight: { value: 0 },
 };
 
 const TRIPLANAR_VERT_DECL = /* glsl */ `
@@ -216,6 +218,30 @@ export function makeSandMaterial(color: THREE.ColorRepresentation = 0xf1d9a0) {
 }
 
 /** Wood with grain from UVs (planks are laid out so U runs along the board). */
+/** Pebbly creek bed (seen through the water). */
+export function makeBedMaterial(color: THREE.ColorRepresentation = 0x6f8a86) {
+  const { map, normal } = pebbleTextures();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0 });
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.tPeb = { value: map };
+    shader.uniforms.tPebN = { value: normal };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vWPosB;`)
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>\nvWPosB = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nuniform sampler2D tPeb;\nuniform sampler2D tPebN;\nvarying vec3 vWPosB;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= 0.55 + texture2D(tPeb, vWPosB.xz * 0.55).r * 0.75;`)
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        { vec3 pn = texture2D(tPebN, vWPosB.xz * 0.55).xyz * 2.0 - 1.0;
+          normal = normalize(normal + (viewMatrix * vec4(pn.x, 0.0, pn.y, 0.0)).xyz * 0.8); }`,
+      );
+  };
+  mat.customProgramCacheKey = () => 'bed';
+  return mat;
+}
+
 export function makeWoodMaterial(color: THREE.ColorRepresentation = 0xffffff, opts: { vertexColors?: boolean } = {}) {
   const { map, normal } = woodTextures();
   const mat = new THREE.MeshStandardMaterial({

@@ -18,7 +18,13 @@ const unionBounds = (a: Bounds, b: Bounds): Bounds => [
 const growBounds = (a: Bounds, r: number): Bounds => [a[0] - r, a[1] - r, a[2] + r, a[3] + r];
 
 export function circle(cx: number, cz: number, r: number): SDF {
-  return { f: (x, z) => Math.hypot(x - cx, z - cz) - r, b: [cx - r, cz - r, cx + r, cz + r] };
+  return {
+    f: (x, z) => {
+      const dx = x - cx, dz = z - cz;
+      return Math.sqrt(dx * dx + dz * dz) - r;
+    },
+    b: [cx - r, cz - r, cx + r, cz + r],
+  };
 }
 
 /** Ellipse approximation (not an exact distance, good enough for gentle shapes). */
@@ -47,8 +53,8 @@ export function box(cx: number, cz: number, hw: number, hd: number, angle = 0, r
       const dx = x - cx, dz = z - cz;
       const lx = Math.abs(dx * c + dz * s) - (hw - round);
       const lz = Math.abs(-dx * s + dz * c) - (hd - round);
-      const ox = Math.max(lx, 0), oz = Math.max(lz, 0);
-      return Math.hypot(ox, oz) + Math.min(Math.max(lx, lz), 0) - round;
+      const ox = lx > 0 ? lx : 0, oz = lz > 0 ? lz : 0;
+      return Math.sqrt(ox * ox + oz * oz) + Math.min(Math.max(lx, lz), 0) - round;
     },
     b: [cx - R, cz - R, cx + R, cz + R],
   };
@@ -59,7 +65,8 @@ export function segmentDist(x: number, z: number, ax: number, az: number, bx: nu
   const l2 = ex * ex + ez * ez;
   let h = l2 > 0 ? (px * ex + pz * ez) / l2 : 0;
   h = h < 0 ? 0 : h > 1 ? 1 : h;
-  return Math.hypot(px - ex * h, pz - ez * h);
+  const qx = px - ex * h, qz = pz - ez * h;
+  return Math.sqrt(qx * qx + qz * qz);
 }
 
 export function capsule(ax: number, az: number, bx: number, bz: number, r: number): SDF {
@@ -105,16 +112,29 @@ export function path(points: P2[], width: number | number[], opts: { smooth?: bo
     minX = Math.min(minX, ax[i]); maxX = Math.max(maxX, ax[i]);
     minZ = Math.min(minZ, az[i]); maxZ = Math.max(maxZ, az[i]);
   }
+  // per-segment constants, so evaluation is a tight loop (this runs millions of times per hole)
+  const sx = new Float64Array(n), sz = new Float64Array(n), il2 = new Float64Array(n), rmax = new Float64Array(n);
+  for (let i = 0; i < n - 1; i++) {
+    sx[i] = ax[i + 1] - ax[i];
+    sz[i] = az[i + 1] - az[i];
+    const l2 = sx[i] * sx[i] + sz[i] * sz[i];
+    il2[i] = l2 > 0 ? 1 / l2 : 0;
+    rmax[i] = Math.max(hr[i], hr[i + 1]);
+  }
   return {
     f: (x, z) => {
       let best = Infinity;
       for (let i = 0; i < n - 1; i++) {
         const px = x - ax[i], pz = z - az[i];
-        const ex = ax[i + 1] - ax[i], ez = az[i + 1] - az[i];
-        const l2 = ex * ex + ez * ez;
-        let h = l2 > 0 ? (px * ex + pz * ez) / l2 : 0;
+        const ex = sx[i], ez = sz[i];
+        let h = (px * ex + pz * ez) * il2[i];
         h = h < 0 ? 0 : h > 1 ? 1 : h;
-        const d = Math.hypot(px - ex * h, pz - ez * h) - (hr[i] + (hr[i + 1] - hr[i]) * h);
+        const qx = px - ex * h, qz = pz - ez * h;
+        const d2 = qx * qx + qz * qz;
+        // skip the square root when this segment can't beat the best so far
+        const lim = best + rmax[i];
+        if (lim > 0 && d2 >= lim * lim) continue;
+        const d = Math.sqrt(d2) - (hr[i] + (hr[i + 1] - hr[i]) * h);
         if (d < best) best = d;
       }
       return best;

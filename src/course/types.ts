@@ -8,6 +8,11 @@ export interface BridgeDef {
   from: V2;
   to: V2;
   width: number;
+  /**
+   * 'logs': lashed logs, 'boardwalk': planks; neither has rails (open, risky crossings).
+   * Default: planks with rope rails.
+   */
+  style?: 'planks' | 'logs' | 'boardwalk';
 }
 
 export interface PieceDef {
@@ -17,6 +22,8 @@ export interface PieceDef {
   open?: SDF[];
   sand?: SDF[];
   glide?: SDF[];
+  /** Creek / pool beds (pebbly, under water). */
+  bed?: SDF[];
   bridges?: BridgeDef[];
   /** Zones where the boundary walls are wooden curbs instead of stone. */
   woodWalls?: SDF[];
@@ -36,7 +43,16 @@ export type ObstacleDef =
   | { type: 'ramp'; at: V2; dir: number; len: number; width: number; height: number; kicker?: boolean }
   | { type: 'spinner'; at: V2; len: number; speed: number; phase?: number; arms?: number }
   | { type: 'slider'; from: V2; to: V2; size: V2; height?: number; period: number; phase?: number }
-  | { type: 'planter'; at: V2; r: number; palm?: boolean };
+  | { type: 'planter'; at: V2; r: number; palm?: boolean }
+  /**
+   * Tiki tunnel: a big tiki head swallows the ball (travelling along `dir` into its mouth at `at`) and
+   * a matching head at `to` spits it out along `toDir`, keeping `keep` of the entry speed.
+   */
+  | { type: 'tunnel'; at: V2; dir: number; to: V2; toDir: number; color?: number; keep?: number; minSpeed?: number; maxSpeed?: number; delay?: number; arc?: number; scale?: number }
+  /** Blowhole: balls that settle in the vent are launched to land at `target`, peaking at height `apex`. */
+  | { type: 'geyser'; at: V2; target: V2; apex: number; period?: number; phase?: number; burst?: number; r?: number }
+  /** Gusty wind over `shape`, blowing toward `dir` for `blow` of every `period` seconds; `source` places the wind tiki. */
+  | { type: 'gust'; shape: SDF; dir: number; strength: number; period: number; blow: number; phase?: number; source?: V2 };
 
 export type DecorDef =
   | { type: 'palm'; at: V2; rot?: number; scale?: number; lean?: number; y?: number }
@@ -47,7 +63,11 @@ export type DecorDef =
   | { type: 'fern'; at: V2; scale?: number; y?: number }
   | { type: 'flowers'; at: V2; scale?: number; y?: number }
   | { type: 'boat'; at: V2; rot?: number }
-  | { type: 'dock'; from: V2; to: V2; width?: number; y?: number };
+  | { type: 'dock'; from: V2; to: V2; width?: number; y?: number }
+  /** A string of glowing paper lanterns hung between poles at each point. */
+  | { type: 'lanterns'; pts: V2[]; h?: number; seed?: number }
+  /** Overwater bungalow on stilts. */
+  | { type: 'bungalow'; at: V2; rot?: number; scale?: number };
 
 export interface IslandDef {
   /** Extra land masses (union). */
@@ -64,6 +84,21 @@ export interface IslandDef {
   jungle?: number; // 0..1 vegetation density
   /** Lower the terrain inside these regions to at most y (for lava pits / pools). */
   carve?: { shape: SDF; y: number }[];
+}
+
+/** A creek whose current carries the ball along its centre line. */
+export interface StreamDef {
+  /** Centre line, in the direction of flow. */
+  path: V2[];
+  width: number;
+  /** Flow speed (units/s), constant or per path point. */
+  speed: number | number[];
+  /** Water surface height. */
+  surface: number | HeightFn;
+  /** How quickly a ball takes on the current's velocity (1/s). */
+  strength?: number;
+  /** Extra still water drawn beyond the channel (the pool it empties into). */
+  pool?: SDF;
 }
 
 export interface LiquidDef {
@@ -85,6 +120,7 @@ export interface HoleDef {
   lava?: LiquidDef[];
   pools?: LiquidDef[];
   waterfalls?: { top: V3; bottom: V3; width: number; dir: number }[];
+  streams?: StreamDef[];
   island?: IslandDef;
   /** Initial camera look direction override (radians, 0 = toward -Z). */
   aimYaw?: number;

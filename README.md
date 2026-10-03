@@ -24,8 +24,8 @@ further for more power, release to putt. Drag back near your start point to canc
 
 ## Game modes
 
-- **Island Tour**: play an island's three holes in order. Under par earns stars and coins;
-  stars unlock the next island (Jungle Falls at 4, Volcano Peak at 10).
+- **Island Tour**: play an island's holes in order. Under par earns stars and coins; stars
+  unlock the next island (Jungle Falls at 4, Volcano Peak at 10, Lantern Lagoon at 16).
 - **Tiki Battle**: you and three AI rivals play the same holes at the same time. Fewest
   total strokes wins, ties go to whoever holed out first. Wins earn trophies, and rivals get
   tougher as your trophy count grows.
@@ -43,6 +43,21 @@ hops over walls and obstacles.
 | Coconut Cove | sunny beach | Welcome Wave (par 2), Coconut Corner (par 3), Lagoon Leap (par 3) |
 | Jungle Falls | golden hour | Waterfall Bend (par 3), Tiki Temple (par 3), Switchback Slide (par 4) |
 | Volcano Peak | dusk, lava | Lava Lanes (par 3), Magma Jump (par 3), The Crater (par 4) |
+| Lantern Lagoon | moonlit night | Lantern Creek (par 3), Tiki Tubes (par 3), Blowhole Bluff (par 4), Moonlight Gauntlet (par 4) |
+
+Lantern Lagoon is built around route choices, Golf Battle style: every hole has a safe long way,
+a risky short way and a hero shot.
+
+- **Lantern Creek**: walk the rail-less log straight to the green, or take the railed bridge on the
+  long loop. Fall off the log and the creek's current carries you all the way back to the tee.
+- **Tiki Tubes**: three colour-coded tiki heads swallow your ball and spit it out across the
+  lagoon. Teal is easy but lands you on the long west path, amber hides behind a spinning totem,
+  and magenta sits in an alcove you can only reach with a bank shot, but rolls you down to the cup.
+- **Blowhole Bluff**: settle your ball in the blowhole and the geyser fires it up the bluff next
+  to the cup (too hard and you're in the tide pool), climb the narrow ledge while the wind god
+  blows balls off the edge, or take the long switchback.
+- **Moonlight Gauntlet**: thread the Moon Tiki's spinning guardian for a shortcut onto the funnel
+  green, cross the inlet on a rail-less boardwalk between gusts, or take the long causeway loop.
 
 ## Building
 
@@ -60,6 +75,9 @@ npx tsx tools/validate.ts          # build every hole headlessly, play it with t
 npx tsx tools/validate.ts vp3      # and scan tee shots for possible holes-in-one
 npx tsx tools/phys-test.ts         # physics sanity checks: roll distances, cup capture, bounces
 npx tsx tools/ai-skill.ts 0.4,0.85 # average rival strokes per hole at given skill levels
+npx tsx tools/mech-test.ts         # checks for tunnels, geysers, gusts and creek currents
+npx tsx tools/route-scan.ts ll2    # tally which tunnel / geyser every tee shot uses, and aces
+npx tsx tools/trace-shot.ts ll1 -88 17.7   # follow one shot (direction in degrees, speed)
 ```
 
 `validate.ts` is the quickest way to check a hole edit: it reports the strokes a perfect
@@ -71,7 +89,8 @@ player needs and fails loudly if a hole can't be completed.
 src/
   physics/   golf ball physics: sphere vs triangle meshes on a spatial grid, 240 Hz fixed
              step, rolling resistance, 5/7 slope gravity, restitution per surface, a real
-             cup with lip-outs, moving obstacles, boosts, hazards and power-up modifiers
+             cup with lip-outs, moving obstacles, boosts, hazards and power-up modifiers, plus
+             creek currents, timed wind gusts, geysers and tiki tunnels
   course/    hole definitions (holes/*.ts) and the builder that turns 2D signed distance
              shapes into turf meshes, stone walls, rock plinths, bridges, ramps and colliders
   world/     island terrain, ocean, sky, clouds, palms and jungle trees, tikis, torches,
@@ -106,7 +125,10 @@ export const myHole: HoleDef = {
 ```
 
 Walls follow every turf edge automatically; list `open` zones to leave edges unwalled, `sand`
-zones for bunkers and `bridges` for plank bridges. Add the hole to a course in
+zones for bunkers and `bridges` for plank bridges (or rail-less `logs` / `boardwalk` crossings).
+Mechanics are obstacles too: `tunnel` (a pair of tiki heads), `geyser` (a blowhole that launches
+balls to a target), `gust` (wind over a zone, on a timer) and `spinner`/`slider`; `streams` are
+creeks with a current that follows their centre line. Add the hole to a course in
 `src/course/holes/`, then run `npx tsx tools/validate.ts cc4`.
 
 ## Quality and performance

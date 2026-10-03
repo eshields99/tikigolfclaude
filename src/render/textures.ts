@@ -240,6 +240,30 @@ export function sandTextures(): TexPair {
   });
 }
 
+/** Rounded river pebbles: brightness in R (darker gaps between stones), pebble bumps for normals. */
+export function pebbleTextures(): TexPair {
+  return cached('pebble', () => {
+    const S = 256;
+    const h = new Float32Array(S * S);
+    const col = new Uint8Array(S * S * 4);
+    for (let y = 0; y < S; y++)
+      for (let x = 0; x < S; x++) {
+        const u = x / S, v = y / S;
+        const [f1, f2] = pworley(u, v, 12, 21);
+        const gap = Math.min(1, (f2 - f1) * 5);
+        const dome = Math.sqrt(Math.max(0, 1 - Math.pow(f1 / 0.75, 2)));
+        h[y * S + x] = dome * 0.8 * gap;
+        // each pebble gets its own tone from a coarse noise lookup at its centre-ish position
+        const tone = 0.62 + pfbm(u, v, 12, 2, 31) * 0.3 + dome * 0.16;
+        const c = tone * (0.45 + gap * 0.55);
+        const o = (y * S + x) * 4;
+        col[o] = col[o + 1] = col[o + 2] = Math.round(Math.max(0, Math.min(1, c)) * 255);
+        col[o + 3] = 255;
+      }
+    return { map: makeDataTexture(col, S, false), normal: makeDataTexture(heightToNormal(h, S, 2.2), S, false) };
+  });
+}
+
 /** Water ripple normals (tileable). */
 export function waterNormal(): THREE.DataTexture {
   return cached('waterN', () => {

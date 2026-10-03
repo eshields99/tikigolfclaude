@@ -11,7 +11,7 @@ import { Rng } from './core/math';
 import { STAR } from './ui/icons';
 import { loadFonts } from './ui/fonts';
 
-const UNLOCK_STARS = [0, 4, 10];
+const UNLOCK_STARS = [0, 4, 10, 16];
 const RIVALS = [
   { name: 'Kai', color: 0x2fd6c8 },
   { name: 'Leilani', color: 0xff4f6d },
@@ -82,7 +82,7 @@ export class App {
     const unlock = () => {
       audio.unlock();
       audio.setVolumes(this.save.data.settings.sfx, this.save.data.settings.music);
-      audio.music?.play(this.mode === 'menu' ? 'menu' : 'play');
+      audio.music?.play(this.mode === 'menu' ? 'menu' : this.game.musicMood());
       if (this.game.course) audio.startAmbience(this.game.course.theme);
       window.removeEventListener('pointerdown', unlock, true);
       window.removeEventListener('keydown', unlock, true);

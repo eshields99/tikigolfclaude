@@ -3,6 +3,7 @@ import type { CourseInfo } from '../game/game';
 import { coconutCove } from './holes/coconut';
 import { jungleFalls } from './holes/jungle';
 import { volcanoPeak } from './holes/volcano';
+import { lanternLagoon } from './holes/lagoon';
 
 export const COURSES: CourseInfo[] = [
   {
@@ -35,5 +36,15 @@ export const COURSES: CourseInfo[] = [
     style: { turfA: 0x6ccd3a, turfB: 0x55b62e, stone: 0x544c49, plinth: 0x433a37, sand: 0x7a685c, wood: 0x7a4a2a, flag: 0xe0242c },
     holes: volcanoPeak,
     backdrop: { volcano: { at: [-95, -330], height: 125, radius: 150 } },
+  },
+  {
+    id: 'lagoon',
+    name: 'Lantern Lagoon',
+    subtitle: 'Moonlit creeks, tiki tunnels & geysers',
+    env: 'night',
+    theme: 'lagoon',
+    color: '#8a7cff',
+    style: { turfA: 0x4fca70, turfB: 0x3ab45f, stone: 0x5d6274, plinth: 0x4a4e60, sand: 0xe6d3a4, wood: 0x9a6a40, flag: 0xff3d6e, bed: 0x4e7c84 },
+    holes: lanternLagoon,
   },
 ];

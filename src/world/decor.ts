@@ -5,12 +5,15 @@ import type { IslandBuild } from './island';
 import type { EnvPreset } from './environment';
 import type { DecorDef } from '../course/types';
 import { Rng, hashString } from '../core/math';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { palmGeo, fernGeo, leafPlantGeo, flowerBushGeo, boulderGeo, tikiGeo, torchGeo, hutGeo, jungleTreeGeo, spireGeo, canoeGeo, surfboardGeo, TORCH_TOP } from './props';
 import { makeFoliageMaterial, makeVertexColorMaterial } from '../render/materials';
 import { getRockMaterial, getTikiMaterial } from '../course/obstacles';
 import { FlameField } from '../render/fx';
+import { lanternGeo, bambooPoleGeo, bungalowGeo, bungalowGlowGeo } from './lagoonProps';
+import { sharedUniforms } from '../render/materials';
 
-export type Theme = 'beach' | 'jungle' | 'volcano';
+export type Theme = 'beach' | 'jungle' | 'volcano' | 'lagoon';
 
 export interface DecorBuild {
   group: THREE.Group;
@@ -62,6 +65,8 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
   };
 
   // ---------------------------------------------------------------- hand placed decor
+  const lanternStrings: { pts: THREE.Vector3[]; seed: number }[] = [];
+  const bungalows: THREE.Matrix4[] = [];
   for (const d of hole.def.decor ?? []) placeDecor(d);
   function placeDecor(d: DecorDef) {
     switch (d.type) {
@@ -113,6 +118,24 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
         occupy(x, z, 0.7);
         break;
       }
+      case 'lanterns': {
+        const h = d.h ?? 2.6;
+        const pts = d.pts.map(([x, z]) => {
+          const y = groundY(x, z);
+          add('pole' + h.toFixed(2), x, y - 0.05, z, rng.range(0, 6.28), 1);
+          occupy(x, z, 0.5);
+          return new THREE.Vector3(x, y + h - 0.12, z);
+        });
+        lanternStrings.push({ pts, seed: d.seed ?? lanternStrings.length });
+        break;
+      }
+      case 'bungalow': {
+        const [x, z] = d.at;
+        const sc = d.scale ?? 1;
+        bungalows.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, d.rot ?? 0, 0)), new THREE.Vector3(sc, sc, sc)));
+        occupy(x, z, 5 * sc);
+        break;
+      }
       default:
         break;
     }
@@ -120,7 +143,7 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
 
   // ---------------------------------------------------------------- torches on walls
   const posts = hole.wallPosts;
-  const torchEvery = theme === 'volcano' ? 1 : theme === 'jungle' ? 2 : 2;
+  const torchEvery = theme === 'volcano' ? 1 : 2;
   posts.forEach((p, i) => {
     if (i % torchEvery !== 0) return;
     if (!free(p.x, p.z, 1.2)) return;
@@ -136,7 +159,7 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
   const half = island.half;
   const cx = island.center.x, cz = island.center.y;
   const step = 1.15;
-  const density = hole.def.island?.jungle ?? (theme === 'jungle' ? 1 : theme === 'volcano' ? 0.55 : 0.75);
+  const density = hole.def.island?.jungle ?? (theme === 'jungle' ? 1 : theme === 'volcano' ? 0.55 : theme === 'lagoon' ? 0.85 : 0.75);
   interface Cell { x: number; z: number; y: number; cd: number; inland: number }
   const cells: Cell[] = [];
   for (let gz = -half + 4; gz < half - 4; gz += step) {
@@ -263,6 +286,7 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
     else if (key.startsWith('canoe')) { geo = canoeGeo(+key.slice(5)); mat = getTikiMaterial(); }
     else if (key.startsWith('surf')) { geo = surfboardGeo(+key.slice(4)); mat = m.propMat; }
     else if (key === 'hut') { geo = hutGeo(); mat = m.propMat; }
+    else if (key.startsWith('pole')) { geo = bambooPoleGeo(+key.slice(4)); mat = m.propMat; }
     else continue;
     const im = new THREE.InstancedMesh(geo, mat, list.length);
     list.forEach((it, i) => {
@@ -274,6 +298,67 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
     im.receiveShadow = true;
     im.computeBoundingSphere();
     group.add(im);
+  }
+
+  // ---------------------------------------------------------------- lantern strings & bungalows
+  const extra: { dispose(): void }[] = [];
+  if (lanternStrings.length) {
+    const lanterns: { p: THREE.Vector3; c: THREE.Color; s: number }[] = [];
+    const ropes: THREE.BufferGeometry[] = [];
+    const palette = [0xff8a3a, 0xffc24a, 0xff5a6a, 0xff9fd0, 0xffe08a, 0x9fe8ff];
+    for (const st of lanternStrings) {
+      const lr = new Rng(hashString(hole.def.id + 'lan' + st.seed));
+      for (let i = 0; i < st.pts.length - 1; i++) {
+        const a = st.pts[i], b = st.pts[i + 1];
+        const len = a.distanceTo(b);
+        const sag = Math.min(0.9, 0.12 + len * 0.07);
+        const at = (t: number) => a.clone().lerp(b, t).add(new THREE.Vector3(0, -sag * 4 * t * (1 - t), 0));
+        const curve = new THREE.CatmullRomCurve3(Array.from({ length: 9 }, (_, k) => at(k / 8)));
+        ropes.push(new THREE.TubeGeometry(curve, 16, 0.014, 4, false));
+        const n = Math.max(1, Math.round(len / 1.15));
+        for (let k = 0; k < n; k++) {
+          const p = at((k + 0.5) / n);
+          lanterns.push({ p, c: new THREE.Color(palette[lr.int(0, palette.length - 1)]), s: lr.range(0.85, 1.2) });
+        }
+      }
+    }
+    if (ropes.length) {
+      const rg = mergeGeometries(ropes);
+      const rm = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+      group.add(new THREE.Mesh(rg, rm));
+      extra.push(rg, rm);
+      for (const r of ropes) r.dispose();
+    }
+    const lmat = makeLanternMaterial();
+    const im = new THREE.InstancedMesh(lanternGeo(), lmat, lanterns.length);
+    lanterns.forEach((l, i) => {
+      im.setMatrixAt(i, new THREE.Matrix4().compose(l.p, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rng.range(0, 6.28), 0)), new THREE.Vector3(l.s, l.s, l.s)));
+      im.setColorAt(i, l.c);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.computeBoundingSphere();
+    group.add(im);
+    extra.push(lmat);
+    // every few lanterns lends its glow to the torch light pool
+    lanterns.forEach((l, i) => {
+      if (i % 3 === 1) torchPositions.push(l.p.clone().add(new THREE.Vector3(0, -0.6, 0)));
+    });
+  }
+  if (bungalows.length) {
+    const bm = new THREE.InstancedMesh(bungalowGeo(), m.propMat, bungalows.length);
+    const gm = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb35a).multiplyScalar(2.2) });
+    const gl = new THREE.InstancedMesh(bungalowGlowGeo(), gm, bungalows.length);
+    bungalows.forEach((mt, i) => {
+      bm.setMatrixAt(i, mt);
+      gl.setMatrixAt(i, mt);
+    });
+    bm.castShadow = true;
+    bm.receiveShadow = true;
+    bm.computeBoundingSphere();
+    gl.computeBoundingSphere();
+    group.add(bm, gl);
+    extra.push(gm);
   }
 
   let flames: FlameField | null = null;
@@ -289,6 +374,47 @@ export function buildDecor(hole: HoleBuild, island: IslandBuild, preset: EnvPres
     updaters: [],
     dispose() {
       flames?.dispose();
+      for (const e of extra) e.dispose();
     },
   };
+}
+
+/** Paper lanterns: unlit, glowing brighter where you look straight through the paper, gently swaying. */
+function makeLanternMaterial() {
+  return new THREE.ShaderMaterial({
+    vertexColors: true,
+    uniforms: { uTime: sharedUniforms.uTime, uNight: sharedUniforms.uNight },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      varying vec3 vC; varying float vG; varying vec3 vN; varying vec3 vV;
+      void main(){
+        vec3 p = position;
+        vec4 ip = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        float ph = ip.x * 0.7 + ip.z * 0.43;
+        float sw = sin(uTime * 1.3 + ph) * 0.06;
+        p.x -= p.y * sw;
+        vec4 w = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        vN = normalize(mat3(modelMatrix * instanceMatrix) * normal);
+        vV = normalize(cameraPosition - w.xyz);
+        #ifdef USE_INSTANCING_COLOR
+          vC = instanceColor;
+        #else
+          vC = vec3(1.0, 0.6, 0.3);
+        #endif
+        vG = color.r;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime, uNight;
+      varying vec3 vC; varying float vG; varying vec3 vN; varying vec3 vV;
+      void main(){
+        float facing = abs(dot(normalize(vN), normalize(vV)));
+        float flick = 0.92 + 0.08 * sin(uTime * 9.0 + vC.g * 37.0);
+        float glow = vG * (0.5 + 0.5 * facing) * flick;
+        vec3 col = vC * glow * mix(1.0, 2.4, uNight) + vC * 0.05;
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
 }

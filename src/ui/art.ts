@@ -71,6 +71,47 @@ export function courseArt(id: string): string {
       ${palm(40, 168, 0.95, 1)}${palm(292, 150, 0.9, -1)}${tiki(150, 176, 0.9)}
       <g fill="#2f8a3a"><path d="M0 200 Q20 170 40 200Z"/><path d="M250 200 Q275 168 300 200Z"/><path d="M170 200 Q185 178 200 200Z"/></g>
     </svg>`;
+  if (id === 'lagoon') {
+    // a string of glowing paper lanterns sagging across the card
+    const lanterns = [26, 62, 98, 134, 170, 206, 242, 278]
+      .map((x, i) => {
+        const y = 52 + Math.sin((x / 320) * Math.PI) * 22;
+        const c = ['#ff8a3a', '#ffc24a', '#ff5a6a', '#ff9fd0', '#ffe08a', '#9fe8ff'][i % 6];
+        return `<g transform="translate(${x} ${y})"><circle r="15" fill="${c}" opacity=".28"/><path d="M0 -12 V-6" stroke="#2a1a10" stroke-width="1.5"/><ellipse rx="8" ry="10" fill="${c}"/><path d="M-6 0 H6 M-7 -4 H7 M-7 4 H7" stroke="#000" stroke-opacity=".18" stroke-width="1.2"/><rect x="-4" y="-11" width="8" height="3" rx="1" fill="#2a1a10"/><rect x="-4" y="8" width="8" height="3" rx="1" fill="#2a1a10"/></g>`;
+      })
+      .join('');
+    const stars = Array.from({ length: 26 }, (_, i) => `<circle cx="${(i * 97) % 320}" cy="${(i * 53) % 90 + 4}" r="${i % 4 === 0 ? 1.6 : 1}" fill="#fff" opacity="${0.5 + (i % 3) * 0.2}"/>`).join('');
+    return `<svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#060c2a"/><stop offset="1" stop-color="#25467e"/></linearGradient>
+        <linearGradient id="lw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c3a6a"/><stop offset="1" stop-color="#05203f"/></linearGradient>
+        <radialGradient id="lm" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="#e8f0ff"/><stop offset="1" stop-color="#e8f0ff" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect width="320" height="200" fill="url(#ls)"/>
+      ${stars}
+      <circle cx="248" cy="40" r="44" fill="url(#lm)" opacity=".35"/>
+      <circle cx="248" cy="40" r="20" fill="#fdf8e8"/>
+      <circle cx="241" cy="35" r="4" fill="#e4dcc4"/><circle cx="254" cy="46" r="3" fill="#e4dcc4"/>
+      <path d="M0 116 Q 80 108 160 114 T 320 112 V200 H0Z" fill="url(#lw)"/>
+      <path d="M248 116 L238 200 H258Z" fill="#cfe4ff" opacity=".18"/>
+      <path d="M10 128 Q60 122 110 130 M190 126 Q250 120 310 128" stroke="#5ff0e6" stroke-width="2" opacity=".7" fill="none"/>
+      <g transform="translate(36 112)"><path d="M-14 0 V-16 M14 0 V-16 M0 0 V-16" stroke="#3a2412" stroke-width="2"/><rect x="-16" y="-24" width="32" height="10" fill="#6b4524"/><path d="M-20 -24 L0 -40 L20 -24Z" fill="#b8913f"/><rect x="-6" y="-21" width="5" height="5" fill="#ffc46a"/></g>
+      <ellipse cx="160" cy="160" rx="132" ry="32" fill="#3d6a5a"/>
+      <ellipse cx="160" cy="156" rx="112" ry="25" fill="#3fb866"/>
+      <path d="M70 160 Q120 140 168 152 Q214 164 246 146" stroke="#2f9a52" stroke-width="20" fill="none" stroke-linecap="round"/>
+      <path d="M70 160 Q120 140 168 152 Q214 164 246 146" stroke="#47c46e" stroke-width="12" stroke-dasharray="8 8" fill="none" stroke-linecap="round"/>
+      <path d="M96 170 Q140 160 190 172" stroke="#3ad8ff" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85"/>
+      ${flag(242, 148, 1)}
+      <g transform="translate(150 150)" stroke="#2a1208" stroke-width="2">
+        <rect x="-15" y="-34" width="30" height="34" rx="5" fill="#a8683a"/>
+        <circle cx="-6" cy="-23" r="4.5" fill="#ff52d9"/><circle cx="6" cy="-23" r="4.5" fill="#ff52d9"/>
+        <path d="M-8 -6 Q0 -12 8 -6 V0 H-8Z" fill="#1a0a04"/>
+      </g>
+      <path d="M0 50 Q160 92 320 48" stroke="#2a1a10" stroke-width="1.2" fill="none"/>
+      ${lanterns}
+      ${palm(60, 162, 0.95, 1)}${palm(286, 156, 0.85, -1)}
+    </svg>`;
+  }
   return `<svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice">
       <defs>
         <linearGradient id="vs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3f8f"/><stop offset=".55" stop-color="#ff8a5a"/><stop offset="1" stop-color="#ffc07a"/></linearGradient>

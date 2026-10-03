@@ -111,6 +111,70 @@ export class Effects {
     }
   }
 
+  /** A tiki tunnel swallowing (or spitting out) a ball: a ring and a burst in the tunnel's colour. */
+  tunnelPuff(pos: THREE.Vector3, color: number, out: boolean) {
+    this.ripple(pos.clone().setY(pos.y - 0.17), out ? 1.4 : 1.1, color, 0.8);
+    this.p.emit({ count: out ? 26 : 18, pos, spread: 0.15, velSpread: out ? 2.4 : 1.4, up: 1.6, life: [0.35, 0.8], size: [0.05, 0.12], colors: [color, 0xffffff], gravity: 2, drag: 2.2, shape: 2, additive: true });
+    this.p.emit({ count: 8, pos, spread: 0.25, velSpread: 0.5, up: 0.8, life: [0.6, 1.1], size: [0.3, 0.55], grow: 2, colors: [0xffffff, color], gravity: -0.5, drag: 2, alpha: 0.45 });
+  }
+
+  private spiritAcc = 0;
+  /** Glowing spirit lights streaming behind a ball travelling through a tunnel. */
+  spiritTrail(pos: THREE.Vector3, color: number, dt: number) {
+    this.spiritAcc += dt;
+    while (this.spiritAcc > 0.012) {
+      this.spiritAcc -= 0.012;
+      this.p.emit({ count: 1, pos, spread: 0.12, velSpread: 0.35, up: 0.2, life: [0.35, 0.7], size: [0.12, 0.26], grow: 0.2, colors: [color, 0xffffff], gravity: 0, drag: 2, additive: true });
+    }
+  }
+
+  /** The eruption of a blowhole: a fountain of droplets and a ring on the ground. */
+  geyserBurst(pos: THREE.Vector3, height: number, night: boolean) {
+    const c = night ? [0xffffff, 0x9ffcff, 0x4fe8ff] : [0xffffff, 0xe6fdff, 0xb8eef5];
+    this.p.emit({ count: 60, pos: pos.clone().setY(pos.y + 0.3), spread: 0.3, velSpread: 1.6, up: Math.sqrt(2 * 9 * height) + 2, life: [0.9, 1.6], size: [0.08, 0.18], colors: c, gravity: 9, drag: 0.3, additive: night });
+    this.p.emit({ count: 16, pos, spread: 0.5, velSpread: 0.8, up: 1.2, life: [1.0, 1.8], size: [0.5, 0.9], grow: 2.4, colors: [0xffffff], gravity: -0.3, drag: 1.5, alpha: 0.4 });
+    this.ripple(pos.clone().setY(pos.y + 0.05), 2.4, night ? 0x7ff5ff : 0xffffff, 1.2);
+  }
+
+  private sprayAcc = 0;
+  /** Droplets raining off the top of an erupting column. */
+  geyserSpray(pos: THREE.Vector3, top: number, dt: number, night: boolean) {
+    this.sprayAcc += dt;
+    while (this.sprayAcc > 0.02) {
+      this.sprayAcc -= 0.02;
+      this.p.emit({ count: 2, pos: pos.clone().setY(pos.y + top), spread: 0.35, velSpread: 2.2, up: 1.5, life: [0.6, 1.1], size: [0.06, 0.13], colors: night ? [0xbffcff, 0x5fe9ff] : [0xffffff, 0xd8f6ff], gravity: 12, drag: 0.4, additive: night });
+    }
+  }
+
+  /** Bubbles and a little steam from a vent (rate 0..1). */
+  vent(pos: THREE.Vector3, rate: number, dt: number, night: boolean) {
+    if (Math.random() < dt * (1.5 + rate * 14))
+      this.p.emit({ count: 1, pos: pos.clone().setY(pos.y + 0.06), spread: 0.22, velSpread: 0.2, up: 0.6 + rate * 1.4, life: [0.25, 0.5], size: [0.04, 0.09], colors: night ? [0xbffcff, 0x6ff0ff] : [0xffffff, 0xd8f6ff], gravity: 3, drag: 1, additive: night });
+    if (Math.random() < dt * (0.8 + rate * 2))
+      this.p.emit({ count: 1, pos: pos.clone().setY(pos.y + 0.2), spread: 0.3, velSpread: 0.15, up: 0.5, life: [1.4, 2.4], size: [0.35, 0.6], grow: 2.2, colors: [0xffffff], gravity: -0.25, drag: 0.6, alpha: 0.18 + rate * 0.15 });
+  }
+
+  /** A wind streak whipping across a gusty ledge. */
+  windStreak(pos: THREE.Vector3, vel: THREE.Vector3) {
+    this.p.emit({ count: 1, pos, spread: 0.05, vel, velSpread: 0.3, life: [0.35, 0.6], size: [0.025, 0.045], colors: [0xffffff, 0xd8ecff], gravity: 0, drag: 0.2, shape: 2, alpha: 0.7 });
+  }
+
+  /** Ball dropping into a creek. */
+  plop(pos: THREE.Vector3, night: boolean) {
+    this.p.emit({ count: 18, pos, spread: 0.08, velSpread: 1.0, up: 2.8, life: [0.4, 0.8], size: [0.05, 0.11], colors: night ? [0xbffcff, 0x5fe9ff] : [0xffffff, 0xe6fdff], gravity: 14, drag: 0.6, additive: night });
+    this.ripple(pos.clone().setY(pos.y + 0.03), 1.0, night ? 0x7ff5ff : 0xffffff, 0.9);
+  }
+
+  private wakeAcc = 0;
+  /** Foam and glowing plankton stirred up by a ball riding the current. */
+  wake(pos: THREE.Vector3, dt: number, night: boolean) {
+    this.wakeAcc += dt;
+    while (this.wakeAcc > 0.05) {
+      this.wakeAcc -= 0.05;
+      this.p.emit({ count: 1, pos: pos.clone().setY(pos.y + 0.02), spread: 0.2, velSpread: 0.3, up: 0.25, life: [0.4, 0.9], size: [0.05, 0.1], colors: night ? [0x9ffcff, 0x4fe8ff] : [0xffffff], gravity: 0.5, drag: 1.5, additive: night, alpha: 0.85 });
+    }
+  }
+
   bumper(pos: THREE.Vector3) {
     this.p.emit({ count: 14, pos, spread: 0.1, velSpread: 2.2, up: 1, life: [0.2, 0.45], size: [0.05, 0.1], colors: [0xffd23f, 0xffffff], gravity: 2, drag: 3, shape: 2, additive: true });
   }

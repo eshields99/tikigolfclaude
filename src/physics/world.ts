@@ -1,5 +1,6 @@
 // Golf ball physics: a single sphere against static triangle meshes, kinematic obstacles,
-// an analytic terrain (out of bounds), hazard zones, boost pads, currents and a real cup.
+// an analytic terrain (out of bounds), hazard zones, boost pads, currents, wind gusts, geysers,
+// tiki tunnels and a real cup.
 import { Mat, SURFACES } from './surfaces';
 import { TriMesh, closestPointOnTri } from './trimesh';
 
@@ -8,6 +9,8 @@ export const GRAVITY = 18;
 export const PHYS_DT = 1 / 240;
 export const MAX_SPEED = 42;
 const ROLL_FACTOR = 5 / 7; // solid sphere rolling down an incline
+/** Horizontal air drag (1/s) applied to airborne balls. */
+const AIR_DRAG = 0.03;
 
 export class Ball {
   x = 0; y = 0; z = 0;
@@ -26,7 +29,14 @@ export class Ball {
   moveTime = 0;
   boostCooldown = 0;
   teleCooldown = 0;
+  ventCooldown = 0;
   lastBoost = -1;
+  /** Tiki tunnel transit: seconds left inside the tunnel, which tunnel, and the exit speed. */
+  transit = 0;
+  transitId = -1;
+  transitSpeed = 0;
+  /** Inside a current this step (used to report entering the water). */
+  inFlow = false;
   /** Highest speed seen since launch (used for camera / effects). */
   peakSpeed = 0;
   /** Shot modifiers (power-ups); reset when the ball is placed. */
@@ -50,7 +60,12 @@ export class Ball {
     this.airTime = 0;
     this.boostCooldown = 0;
     this.teleCooldown = 0;
+    this.ventCooldown = 0;
     this.lastBoost = -1;
+    this.transit = 0;
+    this.transitId = -1;
+    this.transitSpeed = 0;
+    this.inFlow = false;
     this.clearMods();
   }
 
@@ -124,9 +139,89 @@ export interface Zone2D {
   yMax: number;
 }
 export interface BoostZone extends Zone2D { dx: number; dz: number; speed: number; id: number }
-export interface FlowZone extends Zone2D { fx: number; fz: number; strength: number }
+export interface FlowZone extends Zone2D {
+  fx: number; fz: number; strength: number;
+  /** Optional ceiling that varies with position (a creek's water surface plus a margin). */
+  top?: (x: number, z: number) => number;
+  /** Optional spatially varying current (a winding creek): writes the flow velocity at (x, z). */
+  field?: (x: number, z: number, out: Float64Array) => void;
+}
 export interface HazardZone { sdf: (x: number, z: number) => number; y: number; kind: 'water' | 'lava' }
-export interface Teleporter { x: number; y: number; z: number; r: number; tx: number; ty: number; tz: number; dx: number; dz: number; keep: number; minSpeed: number }
+/**
+ * Tiki tunnel: a ball reaching the mouth (sphere x,y,z,r) travels for `delay` seconds along an arc and
+ * pops out at (tx,ty,tz) heading (dx,dz), keeping part of its entry speed.
+ */
+export interface Teleporter {
+  x: number; y: number; z: number; r: number;
+  tx: number; ty: number; tz: number; dx: number; dz: number;
+  keep: number; minSpeed: number; maxSpeed: number;
+  delay: number; arc: number;
+}
+/** Wind that blows on and off: acceleration (ax, az) at full strength, `blow` seconds out of every `period`. */
+export interface GustZone extends Zone2D { ax: number; az: number; period: number; phase: number; blow: number }
+/** A blowhole: balls in the vent (radius r) are launched with (vx, vy, vz) while it erupts. */
+export interface Geyser { x: number; y: number; z: number; r: number; period: number; phase: number; burst: number; vx: number; vy: number; vz: number }
+
+const smooth01 = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+const cycle = (t: number, phase: number, period: number) => (((t + phase) % period) + period) % period;
+
+/** Gust strength 0..1 at time t (smooth ramps at both ends of each blow). */
+export function gustStrength(g: { period: number; phase: number; blow: number }, t: number) {
+  const u = cycle(t, g.phase, g.period);
+  if (u >= g.blow) return 0;
+  const r = Math.min(0.45, g.blow * 0.3);
+  return smooth01(u / r) * smooth01((g.blow - u) / r);
+}
+
+/** Seconds into the geyser's cycle at time t; it erupts while this is below `burst`. */
+export function geyserCycle(g: { period: number; phase: number }, t: number) {
+  return cycle(t, g.phase, g.period);
+}
+
+/**
+ * Launch velocity that carries a ball from (x0,y0,z0) to land at (x1,y1,z1) after peaking at height
+ * `apex`, accounting for the small air drag the integrator applies to horizontal speed.
+ */
+export function ballisticLaunch(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, apex: number) {
+  const top = Math.max(apex, y0 + 0.5, y1 + 0.5);
+  const vy = Math.sqrt(2 * GRAVITY * (top - y0));
+  const T = vy / GRAVITY + Math.sqrt((2 * (top - y1)) / GRAVITY);
+  const d = Math.hypot(x1 - x0, z1 - z0);
+  const vh = (d * AIR_DRAG) / (1 - Math.exp(-AIR_DRAG * T));
+  const ux = d > 1e-6 ? (x1 - x0) / d : 0, uz = d > 1e-6 ? (z1 - z0) / d : 0;
+  return { vx: ux * vh, vy, vz: uz * vh, time: T };
+}
+
+/**
+ * Current that follows a polyline (a creek): flows along the nearest segment at the local speed and
+ * gently pulls toward the centre line so balls ride the middle of the channel.
+ */
+export function pathFlowField(pts: [number, number][], speeds: number[] | number, centering = 1.2) {
+  const n = pts.length;
+  const sp = Array.isArray(speeds) ? speeds : pts.map(() => speeds);
+  return (x: number, z: number, out: Float64Array) => {
+    let best = Infinity, bi = 0, bt = 0;
+    for (let i = 0; i < n - 1; i++) {
+      const ax = pts[i][0], az = pts[i][1];
+      const ex = pts[i + 1][0] - ax, ez = pts[i + 1][1] - az;
+      const l2 = ex * ex + ez * ez || 1e-9;
+      let t = ((x - ax) * ex + (z - az) * ez) / l2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const d = (ax + ex * t - x) ** 2 + (az + ez * t - z) ** 2;
+      if (d < best) { best = d; bi = i; bt = t; }
+    }
+    const a = pts[bi], b = pts[bi + 1];
+    const ex = b[0] - a[0], ez = b[1] - a[1];
+    const l = Math.hypot(ex, ez) || 1;
+    const tx = ex / l, tz = ez / l;
+    // lateral offset from the centre line (positive = left of the flow)
+    const px = x - (a[0] + ex * bt), pz = z - (a[1] + ez * bt);
+    const off = px * -tz + pz * tx;
+    const v = sp[bi] + (sp[bi + 1] - sp[bi]) * bt;
+    out[0] = tx * v + tz * off * centering;
+    out[1] = tz * v - tx * off * centering;
+  };
+}
 
 export interface Cup { x: number; y: number; z: number; r: number; depth: number }
 
@@ -138,11 +233,16 @@ export interface PhysEvents {
   holed?(): void;
   boost?(id: number): void;
   bumper?(x: number, y: number, z: number): void;
-  teleport?(fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number): void;
+  /** A tiki tunnel swallowed the ball ('in') or spat it out ('out'). */
+  tunnel?(phase: 'in' | 'out', id: number, x: number, y: number, z: number): void;
+  geyser?(id: number, x: number, y: number, z: number): void;
+  /** The ball dropped into a current. */
+  water?(x: number, y: number, z: number, speed: number): void;
   rimHit?(): void;
 }
 
 const _cp = new Float64Array(3);
+const _flow = new Float64Array(2);
 const _cand = new Int32Array(1024);
 const _kcand = new Int32Array(512);
 
@@ -163,6 +263,8 @@ export class PhysicsWorld {
   hazards: HazardZone[] = [];
   boosts: BoostZone[] = [];
   flows: FlowZone[] = [];
+  gusts: GustZone[] = [];
+  geysers: Geyser[] = [];
   teleporters: Teleporter[] = [];
   cup: Cup | null = null;
   /** Extra downward pull inside the cup radius (makes the cup a bit more forgiving). */
@@ -208,12 +310,14 @@ export class PhysicsWorld {
   /** Advance the ball by dt starting at time t. Returns false if the ball is inactive. */
   step(b: Ball, t: number, dt: number, ev: PhysEvents | null): boolean {
     if (b.atRest) return false;
+    if (b.transit > 0) return this.stepTransit(b, dt, ev);
     const r = BALL_R;
     const G = GRAVITY;
 
     b.moveTime += dt;
     if (b.boostCooldown > 0) b.boostCooldown -= dt;
     if (b.teleCooldown > 0) b.teleCooldown -= dt;
+    if (b.ventCooldown > 0) b.ventCooldown -= dt;
 
     // ---- forces ---------------------------------------------------------
     let ax = 0, ay = -G, az = 0;
@@ -243,6 +347,24 @@ export class PhysicsWorld {
     b.vy += ay * dt;
     b.vz += az * dt;
 
+    // ---- currents: find the one the ball is in (water lifts it, so it barely touches the bed) ----
+    let inFlow = false, flowX = 0, flowZ = 0, flowK = 0;
+    for (const f of this.flows) {
+      if (b.y < f.yMin || b.y > f.yMax) continue;
+      if (f.sdf(b.x, b.z) > 0) continue;
+      if (f.top && b.y > f.top(b.x, b.z)) continue;
+      flowX = f.fx;
+      flowZ = f.fz;
+      if (f.field) {
+        f.field(b.x, b.z, _flow);
+        flowX = _flow[0];
+        flowZ = _flow[1];
+      }
+      flowK = Math.min(1, f.strength * dt);
+      inFlow = true;
+      break;
+    }
+
     // ---- rolling resistance ------------------------------------------------
     if (b.grounded) {
       let s = SURFACES[b.gmat] ?? SURFACES[Mat.Turf];
@@ -253,24 +375,32 @@ export class PhysicsWorld {
       let tx = rvx - vn * nx, ty = rvy - vn * ny, tz = rvz - vn * nz;
       const sp = Math.hypot(tx, ty, tz);
       if (sp > 0) {
-        const dec = (s.rollDecel * ny + s.rollDrag * sp) * b.rollMul * dt;
+        const dec = (s.rollDecel * ny + s.rollDrag * sp) * b.rollMul * (inFlow ? 0.12 : 1) * dt;
         const k = dec >= sp ? 0 : 1 - dec / sp;
         tx *= k; ty *= k; tz *= k;
       }
       rvx = tx + vn * nx; rvy = ty + vn * ny; rvz = tz + vn * nz;
       b.vx = rvx + b.gvx; b.vy = rvy + b.gvy; b.vz = rvz + b.gvz;
     } else {
-      const k = 1 - 0.03 * dt;
+      const k = 1 - AIR_DRAG * dt;
       b.vx *= k; b.vz *= k;
     }
 
     // ---- currents -----------------------------------------------------------
-    for (const f of this.flows) {
-      if (b.y < f.yMin || b.y > f.yMax) continue;
-      if (f.sdf(b.x, b.z) > 0) continue;
-      const k = Math.min(1, f.strength * dt);
-      b.vx += (f.fx - b.vx) * k;
-      b.vz += (f.fz - b.vz) * k;
+    if (inFlow) {
+      b.vx += (flowX - b.vx) * flowK;
+      b.vz += (flowZ - b.vz) * flowK;
+    }
+    if (inFlow && !b.inFlow) ev?.water?.(b.x, b.y, b.z, Math.abs(b.vy));
+    b.inFlow = inFlow;
+
+    // ---- wind gusts ------------------------------------------------------------
+    for (const g of this.gusts) {
+      if (b.y < g.yMin || b.y > g.yMax || g.sdf(b.x, b.z) > 0) continue;
+      const k = gustStrength(g, t);
+      if (k <= 0) continue;
+      b.vx += g.ax * k * dt;
+      b.vz += g.az * k * dt;
     }
 
     // clamp speed
@@ -499,17 +629,40 @@ export class PhysicsWorld {
       }
     }
 
-    // ---- teleporters -----------------------------------------------------------------------------
+    // ---- geysers: a ball in the vent waits for the next eruption, then gets launched --------------------
+    let inVent = false;
+    for (let gi = 0; gi < this.geysers.length; gi++) {
+      const gz = this.geysers[gi];
+      const dx = b.x - gz.x, dz = b.z - gz.z;
+      if (dx * dx + dz * dz > gz.r * gz.r || b.y > gz.y + 0.9) continue;
+      inVent = true;
+      if (b.ventCooldown <= 0 && geyserCycle(gz, t + dt) < gz.burst) {
+        b.vx = gz.vx; b.vy = gz.vy; b.vz = gz.vz;
+        b.grounded = false;
+        b.airTime = 0;
+        b.ventCooldown = 0.6;
+        b.restTime = 0;
+        ev?.geyser?.(gi, gz.x, gz.y, gz.z);
+        break;
+      }
+    }
+
+    // ---- tiki tunnels -----------------------------------------------------------------------------
     if (b.teleCooldown <= 0) {
-      for (const tp of this.teleporters) {
-        if (Math.hypot(b.x - tp.x, b.y - tp.y, b.z - tp.z) < tp.r) {
-          const sp = Math.max(tp.minSpeed, Math.hypot(b.vx, b.vz) * tp.keep);
-          const fx = b.x, fy = b.y, fz = b.z;
-          b.x = tp.tx; b.y = tp.ty; b.z = tp.tz;
-          b.vx = tp.dx * sp; b.vz = tp.dz * sp; b.vy = 0;
-          b.teleCooldown = 0.6;
-          ev?.teleport?.(fx, fy, fz, tp.tx, tp.ty, tp.tz);
-          break;
+      for (let ti = 0; ti < this.teleporters.length; ti++) {
+        const tp = this.teleporters[ti];
+        if ((b.x - tp.x) ** 2 + (b.y - tp.y) ** 2 + (b.z - tp.z) ** 2 < tp.r * tp.r) {
+          b.transitSpeed = Math.min(tp.maxSpeed, Math.max(tp.minSpeed, Math.hypot(b.vx, b.vz) * tp.keep));
+          b.transitId = ti;
+          b.transit = Math.max(1e-6, tp.delay);
+          b.x = tp.x; b.y = tp.y; b.z = tp.z;
+          b.vx = b.vy = b.vz = 0;
+          b.wx = b.wy = b.wz = 0;
+          b.grounded = false;
+          b.restTime = 0;
+          ev?.tunnel?.('in', ti, tp.x, tp.y, tp.z);
+          if (tp.delay <= 0) return this.stepTransit(b, 0, ev);
+          return true;
         }
       }
     }
@@ -535,7 +688,19 @@ export class PhysicsWorld {
     // ---- rest detection -----------------------------------------------------------------------------------------
     const rs = Math.hypot(b.vx - b.gvx, b.vy - b.gvy, b.vz - b.gvz);
     const groundMoving = Math.abs(b.gvx) + Math.abs(b.gvy) + Math.abs(b.gvz) > 0.01;
-    if (grounded && !groundMoving && rs < 0.14) {
+    if (inVent) b.restTime = 0;
+    else if (inFlow) {
+      // only a ball pinned against something in the water (barely moving) ever settles
+      if (grounded && rs < 0.06) {
+        b.restTime += dt;
+        if (b.restTime > 1.2) {
+          b.atRest = true;
+          b.vx = b.vy = b.vz = 0;
+          b.wx = b.wy = b.wz = 0;
+          return false;
+        }
+      } else b.restTime = 0;
+    } else if (grounded && !groundMoving && rs < 0.14) {
       const s = SURFACES[b.gmat] ?? SURFACES[Mat.Turf];
       const slopePull = GRAVITY * Math.sqrt(Math.max(0, 1 - b.gny * b.gny)) * ROLL_FACTOR;
       if (slopePull < s.rollDecel * b.rollMul * b.gny * 0.92 || rs < 0.025) {
@@ -554,6 +719,42 @@ export class PhysicsWorld {
       b.vx = b.vy = b.vz = 0;
       return false;
     }
+    return true;
+  }
+
+  /** Carry a ball through a tiki tunnel along a lofted arc, then pop it out of the exit mouth. */
+  private stepTransit(b: Ball, dt: number, ev: PhysEvents | null): boolean {
+    const tp = this.teleporters[b.transitId];
+    if (!tp) {
+      b.transit = 0;
+      return true;
+    }
+    b.moveTime += dt;
+    b.transit -= dt;
+    const u = tp.delay > 0 ? Math.min(1, Math.max(0, 1 - b.transit / tp.delay)) : 1;
+    const k = smooth01(u);
+    const px = b.x, py = b.y, pz = b.z;
+    b.x = tp.x + (tp.tx - tp.x) * k;
+    b.z = tp.z + (tp.tz - tp.z) * k;
+    b.y = tp.y + (tp.ty - tp.y) * k + tp.arc * 4 * u * (1 - u);
+    if (dt > 0) {
+      b.vx = (b.x - px) / dt; b.vy = (b.y - py) / dt; b.vz = (b.z - pz) / dt;
+    }
+    if (b.transit > 0) return true;
+    b.transit = 0;
+    b.x = tp.tx; b.y = tp.ty; b.z = tp.tz;
+    b.vx = tp.dx * b.transitSpeed;
+    b.vz = tp.dz * b.transitSpeed;
+    b.vy = 0;
+    b.grounded = true;
+    b.gnx = 0; b.gny = 1; b.gnz = 0;
+    b.gvx = b.gvy = b.gvz = 0;
+    b.gmat = Mat.Turf;
+    b.restTime = 0;
+    b.moveTime = 0;
+    b.peakSpeed = b.transitSpeed;
+    b.teleCooldown = 0.5;
+    ev?.tunnel?.('out', b.transitId, tp.tx, tp.ty, tp.tz);
     return true;
   }
 }

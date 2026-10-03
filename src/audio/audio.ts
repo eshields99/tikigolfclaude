@@ -256,6 +256,10 @@ export class AudioEngine {
       case 'sand':
         this.burst(t, 0.18, 0.35 * v, 'bandpass', 3500, 0.7, this.sfxBus, 1500);
         break;
+      case 'water':
+        this.tone('sine', 700, 300, t, 0.002, 0.08, 0.25 * v);
+        this.burst(t, 0.1, 0.15 * v, 'lowpass', 1500, 0.8);
+        break;
       default:
         this.tone('sine', 140, 90, t, 0.002, 0.07, 0.4 * v);
         this.burst(t, 0.03, 0.15 * v, 'lowpass', 900);
@@ -345,6 +349,65 @@ export class AudioEngine {
     this.tone('sawtooth', 180, 900, t, 0.01, 0.32, 0.12);
     this.tone('sine', 360, 1500, t, 0.01, 0.3, 0.25);
     this.burst(t, 0.35, 0.3, 'bandpass', 600, 1.5, this.sfxBus, 4000);
+  }
+  /** A tiki tunnel gulps the ball down, then a sparkle while it travels. */
+  tunnelIn(v = 1) {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.tone('sine', 520, 110, t, 0.004, 0.22, 0.5 * v);
+    this.tone('triangle', 180, 60, t + 0.02, 0.004, 0.2, 0.35 * v);
+    this.burst(t, 0.18, 0.18 * v, 'bandpass', 900, 1.5, this.sfxBus, 250);
+    [84, 88, 91, 96].forEach((n, i) => this.tone('sine', mtof(n), mtof(n), t + 0.14 + i * 0.07, 0.01, 0.3, 0.06 * v));
+  }
+  /** ...and the exit tiki spits it out. */
+  tunnelOut(v = 1) {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.tone('sine', 180, 720, t, 0.004, 0.14, 0.45 * v);
+    this.burst(t, 0.12, 0.25 * v, 'bandpass', 1400, 1.2, this.sfxBus, 3200);
+    this.tone('sine', 1320, 1320, t + 0.05, 0.004, 0.2, 0.07 * v);
+  }
+  /** Blowhole eruption: a roar, a hiss of spray and a deep thump. */
+  geyserBlast(v = 1) {
+    if (!this.ctx || v < 0.03) return;
+    const t = this.now;
+    this.burst(t, 1.1, 0.5 * v, 'lowpass', 500, 0.7, this.sfxBus, 2600);
+    this.burst(t + 0.05, 1.3, 0.22 * v, 'highpass', 3000, 0.7);
+    this.tone('sine', 70, 45, t, 0.02, 0.6, 0.4 * v);
+  }
+  /** Bubbling in a vent that is about to blow. */
+  gurgle(v = 1) {
+    if (!this.ctx || v < 0.03) return;
+    const t = this.now;
+    for (let i = 0; i < 3; i++) {
+      const f = 260 + Math.random() * 380;
+      this.tone('sine', f, f * 1.8, t + i * 0.05 + Math.random() * 0.04, 0.004, 0.05, 0.1 * v, this.ambBus);
+    }
+  }
+  /** A gust of wind sweeping past. */
+  gust(v = 1) {
+    if (!this.ctx || v < 0.03) return;
+    const ctx = this.ctx;
+    const t = this.now;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 0.9;
+    f.frequency.setValueAtTime(320, t);
+    f.frequency.linearRampToValueAtTime(950, t + 0.6);
+    f.frequency.linearRampToValueAtTime(380, t + 1.9);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.3 * v, t + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1);
+    this.noiseSrc(t, 2.2).connect(f).connect(g).connect(this.ambBus);
+    this.tone('sine', 880, 1180, t + 0.2, 0.4, 1.0, 0.02 * v, this.ambBus);
+  }
+  /** The ball drops into water. */
+  plop(v = 1) {
+    if (!this.ctx) return;
+    const t = this.now;
+    this.tone('sine', 950, 260, t, 0.002, 0.12, 0.35 * v);
+    this.burst(t, 0.15, 0.2 * v, 'lowpass', 1800, 0.8, this.sfxBus, 500);
   }
   powerFire() {
     if (!this.ctx) return;
@@ -450,7 +513,7 @@ export class AudioEngine {
   }
 
   // ------------------------------------------------------------------ ambience
-  startAmbience(kind: 'beach' | 'jungle' | 'volcano') {
+  startAmbience(kind: 'beach' | 'jungle' | 'volcano' | 'lagoon') {
     if (!this.ctx) return;
     this.stopAmbience();
     const ctx = this.ctx;
@@ -467,7 +530,7 @@ export class AudioEngine {
       src.loop = true;
       const f = ctx.createBiquadFilter();
       f.type = 'lowpass';
-      f.frequency.value = kind === 'volcano' ? 380 : 650;
+      f.frequency.value = kind === 'volcano' ? 380 : kind === 'lagoon' ? 480 : 650;
       const g = ctx.createGain();
       g.gain.value = 0.1;
       const lfo = ctx.createOscillator();
@@ -491,7 +554,7 @@ export class AudioEngine {
     wf.frequency.value = 500;
     wf.Q.value = 0.6;
     const wg = ctx.createGain();
-    wg.gain.value = kind === 'volcano' ? 0.03 : 0.018;
+    wg.gain.value = kind === 'volcano' ? 0.03 : kind === 'lagoon' ? 0.011 : 0.018;
     const wl = ctx.createOscillator();
     wl.frequency.value = 0.05;
     const wlg = ctx.createGain();
@@ -524,19 +587,46 @@ export class AudioEngine {
       },
     };
   }
-  private ambKind: 'beach' | 'jungle' | 'volcano' = 'beach';
+  private ambKind: 'beach' | 'jungle' | 'volcano' | 'lagoon' = 'beach';
+  private cricketT = 0.5;
+  private frogT = 2;
   stopAmbience() {
     this.ambient?.stop();
     this.ambient = null;
     this.wfGain = null;
   }
+  /** Night chorus: crickets chirping in threes, and the odd tree frog. */
+  private nightCritters(dt: number, t: number) {
+    this.cricketT -= dt;
+    if (this.cricketT <= 0) {
+      this.cricketT = 0.35 + Math.random() * 0.9;
+      const pan = Math.random() * 1.6 - 0.8;
+      const f = 4300 + Math.random() * 600;
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) this.tone('sine', f, f * 0.98, t + i * 0.055, 0.004, 0.03, 0.014, this.ambBus, pan);
+    }
+    this.frogT -= dt;
+    if (this.frogT <= 0) {
+      this.frogT = 1.8 + Math.random() * 4;
+      const pan = Math.random() * 1.4 - 0.7;
+      const f = 150 + Math.random() * 90;
+      const k = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < k; i++) {
+        const tt = t + i * 0.22;
+        this.tone('square', f, f * 0.82, tt, 0.01, 0.11, 0.022, this.ambBus, pan);
+        this.tone('sine', f * 2, f * 1.7, tt, 0.01, 0.1, 0.03, this.ambBus, pan);
+      }
+    }
+  }
+
   /** Per-frame ambience: birds, torch crackle, waterfall distance. */
   updateAmbience(dt: number, waterfallDist: number, torchDist: number) {
     if (!this.ctx || !this.ambient) return;
     const t = this.now;
     if (this.wfGain) this.wfGain.gain.setTargetAtTime(waterfallDist < 60 ? Math.min(0.22, 3.2 / Math.max(6, waterfallDist)) : 0, t, 0.3);
+    if (this.ambKind === 'lagoon') this.nightCritters(dt, t);
     this.birdT -= dt;
-    if (this.birdT <= 0 && this.ambKind !== 'volcano') {
+    if (this.birdT <= 0 && this.ambKind !== 'volcano' && this.ambKind !== 'lagoon') {
       this.birdT = 2.5 + Math.random() * 6;
       const pan = Math.random() * 1.6 - 0.8;
       const base = 2200 + Math.random() * 1600;

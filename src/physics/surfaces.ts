@@ -14,10 +14,11 @@ export const Mat = {
   Metal: 10,
   Glide: 11,
   Rubber: 12,
+  Bed: 13,
 } as const;
 export type MatId = (typeof Mat)[keyof typeof Mat];
 
-export type SoundKind = 'turf' | 'sand' | 'wood' | 'stone' | 'rock' | 'bumper' | 'cup' | 'metal' | 'rubber' | 'none';
+export type SoundKind = 'turf' | 'sand' | 'wood' | 'stone' | 'rock' | 'bumper' | 'cup' | 'metal' | 'rubber' | 'water' | 'none';
 
 export interface Surface {
   name: string;
@@ -50,4 +51,6 @@ SURFACES[Mat.OOB] = { name: 'oob', rollDecel: 8, rollDrag: 1.2, restitution: 0.3
 SURFACES[Mat.Lava] = { name: 'lava', rollDecel: 20, rollDrag: 3, restitution: 0.0, friction: 0.5, bounceMin: 99, hazard: 'lava', sound: 'none' };
 SURFACES[Mat.Metal] = { name: 'metal', rollDecel: 2.4, rollDrag: 0.18, restitution: 0.6, friction: 0.06, bounceMin: 0.3, sound: 'metal' };
 SURFACES[Mat.Glide] = { name: 'glide', rollDecel: 0.8, rollDrag: 0.08, restitution: 0.4, friction: 0.04, bounceMin: 1.4, sound: 'turf' };
+// creek bed under the water: soft and draggy, the current does the carrying
+SURFACES[Mat.Bed] = { name: 'water', rollDecel: 4.2, rollDrag: 0.9, restitution: 0.08, friction: 0.35, bounceMin: 2.5, sound: 'water' };
 SURFACES[Mat.Rubber] = { name: 'rubber', rollDecel: 3, rollDrag: 0.3, restitution: 0.85, friction: 0.15, bounceMin: 0.2, sound: 'rubber' };

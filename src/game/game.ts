@@ -1,7 +1,7 @@
 // Game orchestrator: owns the stage, camera rig, input, effects and runs hole sessions for every mode.
 import * as THREE from 'three';
 import { Stage, type Backdrop } from './stage';
-import { CameraRig, fwd } from './camera';
+import { CameraRig, fwd, yawOf } from './camera';
 import { Input } from './input';
 import { AimView, powerColor } from './aim';
 import type { Particles } from '../render/particles';
@@ -13,9 +13,9 @@ import type { HoleDef } from '../course/types';
 import type { CourseStyle } from '../course/builder';
 import type { Theme } from '../world/decor';
 import { Mat, SURFACES } from '../physics/surfaces';
-import { BALL_R } from '../physics/world';
+import { BALL_R, geyserCycle } from '../physics/world';
 import type { Quality } from '../render/renderer';
-import { NavField, ShotSearch, jitterPlan, noiseFor } from './ai';
+import { NavField, ShotSearch, jitterPlan, noiseFor, type NavHole } from './ai';
 import AIWorker from './ai.worker?worker&inline';
 import type { WorkerPlanMsg, WorkerPlanResult } from './ai.worker';
 import { Rng } from '../core/math';
@@ -254,6 +254,8 @@ export class Game {
       this.labels.set(g, lab);
     }
     for (const g of this.golfers) g.total = totals[g.id] ?? 0;
+    this.geyserWas = [];
+    this.gustWas = [];
     this.session = new HoleSession(hole, this.golfers, rules, this.makeHooks());
     if (rivals.length) {
       this.planner.reset(hole, `${this.course.id}:${index}`);
@@ -273,8 +275,16 @@ export class Game {
     this.aim.tint = null;
     this.refreshPowerups();
     audio.startAmbience(this.course.theme);
-    audio.music?.play(rules.mode === 'battle' || rules.mode === 'rush' ? 'battle' : this.course.theme === 'volcano' ? 'volcano' : 'play');
+    audio.music?.play(this.musicMood());
     audio.whoosh();
+  }
+
+  /** Soundtrack for the hole being played: battle music in battles, otherwise the island's mood. */
+  musicMood() {
+    const mode = this.session?.rules.mode;
+    if (mode === 'battle' || mode === 'rush') return 'battle';
+    const th = this.course?.theme;
+    return th === 'volcano' ? 'volcano' : th === 'lagoon' ? 'night' : 'play';
   }
 
   restartHole() {
@@ -399,6 +409,40 @@ export class Game {
         if (bump) bump.pulse = 1;
         if (g.human) audio.impact(8, 'bumper');
       },
+      tunnel: (g, phase, id, pos) => {
+        const tf = this.session?.hole.tunnels[id];
+        const color = tf ? tf.color.getHex() : 0x2ff5d2;
+        tf?.flash(phase);
+        const near = g.human || pos.distanceTo(this.stage.camera.position) < 18;
+        if (phase === 'in') {
+          g.view.setVisible(false);
+          this.fx.tunnelPuff(pos, color, false);
+          if (near) audio.tunnelIn(g.human ? 1 : 0.45);
+          // swing the camera round to follow the ball's flight to the exit
+          if (g.human && tf) this.rig.beginShot(yawOf(tf.exit.x - pos.x, tf.exit.z - pos.z));
+          if (g.human && this.haptics) navigator.vibrate?.(15);
+        } else {
+          g.view.setVisible(true);
+          g.view.resetTrail();
+          this.fx.tunnelPuff(pos, color, true);
+          if (near) audio.tunnelOut(g.human ? 1 : 0.45);
+          if (g.human && tf) this.rig.beginShot(yawOf(tf.exitDir.x, tf.exitDir.z));
+        }
+      },
+      geyser: (g, _id, pos) => {
+        if (g.human) {
+          this.rig.addShake(0.25);
+          audio.whoosh();
+          if (this.haptics) navigator.vibrate?.([20, 30, 40]);
+          this.rig.beginShot(yawOf(g.ball.vx, g.ball.vz));
+        }
+        void pos;
+      },
+      water: (g, pos) => {
+        const night = this.course?.theme === 'lagoon';
+        this.fx.plop(pos, night);
+        if (g.human || pos.distanceTo(this.stage.camera.position) < 14) audio.plop(g.human ? 1 : 0.5);
+      },
       out: (g) => {
         if (g.human) this.ui.toast(this.session?.timeLeft === 0 ? 'Time’s up!' : 'Max strokes reached', 'bad');
         this.updatePlayersHud();
@@ -517,6 +561,7 @@ export class Game {
         if (g.power === 'fire') this.fx.fireTrail(p, dt);
         else if (g.power === 'glide' && g.ball.speed > 1) this.fx.glideTrail(p, dt);
       }
+      this.updateMechanicsFx(dt, s);
       // trail sparkles + rolling audio
       if (h.state === 'rolling' && h.ball.speed > 4) {
         this.sparkleT += dt;
@@ -552,6 +597,70 @@ export class Game {
     this.fx.update(dt);
     this.stage.update(dt, s ? s.simTime : this.stage.time);
     void this.shake;
+  }
+
+  private geyserWas: number[] = [];
+  private gustWas: number[] = [];
+  private gurgleT = 0;
+
+  /** Particles and sounds for tunnels, blowholes, gusts and creeks (driven by the simulation clock). */
+  private updateMechanicsFx(dt: number, s: HoleSession) {
+    const hole = s.hole;
+    const cam = this.stage.camera.position;
+    const t = s.simTime;
+    const night = this.course?.theme === 'lagoon';
+    for (const g of s.golfers) {
+      const b = g.ball;
+      if (b.transit > 0) {
+        const tf = hole.tunnels[b.transitId];
+        this.fx.spiritTrail(g.pos, tf ? tf.color.getHex() : 0x2ff5d2, dt);
+        g.view.setVisible(false);
+      } else if (b.inFlow && g.state === 'rolling') this.fx.wake(g.pos, dt, night);
+    }
+    hole.geysers.forEach((gf, i) => {
+      const u = geyserCycle(gf, t);
+      const prev = this.geyserWas[i] ?? u;
+      this.geyserWas[i] = u;
+      const d = gf.pos.distanceTo(cam);
+      const vol = Math.min(1, 12 / Math.max(6, d)) * (d < 60 ? 1 : 0);
+      if (u < prev) {
+        this.fx.geyserBurst(gf.pos, gf.height, night);
+        audio.geyserBlast(vol);
+        if (d < 12) this.rig.addShake(0.12);
+      }
+      if (u < gf.burst + 0.6) this.fx.geyserSpray(gf.pos, gf.height * Math.min(1, u / gf.burst), dt, night);
+      const warn = u > gf.period - 1.3 ? (u - (gf.period - 1.3)) / 1.3 : 0;
+      this.fx.vent(gf.pos, warn, dt, night);
+      if (warn > 0 && d < 25) {
+        this.gurgleT -= dt;
+        if (this.gurgleT <= 0) {
+          this.gurgleT = 0.12 + Math.random() * 0.15;
+          audio.gurgle(vol * (0.4 + warn));
+        }
+      }
+    });
+    hole.gusts.forEach((gu, i) => {
+      const k = gu.strength(t);
+      const prev = this.gustWas[i] ?? 0;
+      this.gustWas[i] = k;
+      if (k > 0.05 && prev <= 0.05) {
+        const d = gu.center.distanceTo(cam);
+        audio.gust(Math.min(1, 14 / Math.max(7, d)));
+      }
+      if (k > 0.1) {
+        const b = gu.zone.b;
+        const n = Math.random() < k * dt * 40 ? 1 : 0;
+        for (let j = 0; j < n; j++) {
+          for (let tries = 0; tries < 6; tries++) {
+            const x = b[0] + Math.random() * (b[2] - b[0]), z = b[1] + Math.random() * (b[3] - b[1]);
+            if (gu.zone.f(x, z) > 0) continue;
+            const v = gu.dir.clone().multiplyScalar(9 + Math.random() * 5);
+            this.fx.windStreak(new THREE.Vector3(x, gu.y + 0.25 + Math.random() * 1.6, z), v);
+            break;
+          }
+        }
+      }
+    });
   }
 
   private updateLabels() {
@@ -621,7 +730,7 @@ class Planner implements AIPlanner {
     this.pending.clear();
   }
 
-  reset(hole: { def: HoleDef; pieces: { shape: { f(x: number, z: number): number }; h(x: number, z: number): number }[]; cup: { x: number; z: number }; bounds: { min: { x: number; z: number }; max: { x: number; z: number } } }, holeKey = '') {
+  reset(hole: NavHole, holeKey = '') {
     this.jobs = [];
     this.pending.clear();
     this.holeKey = holeKey;

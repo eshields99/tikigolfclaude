@@ -25,6 +25,11 @@ export interface SessionHooks {
   holed(g: Golfer): void;
   boost(g: Golfer): void;
   bumper(g: Golfer, pos: THREE.Vector3): void;
+  /** A tiki tunnel swallowed ('in') or spat out ('out') a ball. */
+  tunnel?(g: Golfer, phase: 'in' | 'out', id: number, pos: THREE.Vector3): void;
+  geyser?(g: Golfer, id: number, pos: THREE.Vector3): void;
+  /** A ball dropped into a creek. */
+  water?(g: Golfer, pos: THREE.Vector3, speed: number): void;
   out(g: Golfer): void;
   rested(g: Golfer): void;
   finished(s: HoleSession): void;
@@ -138,7 +143,8 @@ export class HoleSession {
         this.ai?.request(g, this);
       }
       g.aiTimer -= dt;
-      if (g.aiPlan && g.aiTimer <= 0) {
+      // fire on the planned beat, plus the rival's own timing error
+      if (g.aiPlan && g.aiTimer <= -(g.aiPlan.lag ?? 0)) {
         const p = g.aiPlan;
         g.aiPlan = null;
         g.aiThinking = false;
@@ -213,7 +219,8 @@ export class HoleSession {
       g.view.sync(b.x, b.y, b.z, b.wx, b.wy, b.wz, dt);
       g.view.updateSquash(dt);
       g.view.setGround(g.state === 'holed' && b.y < this.hole.cup.y - 0.1 ? -Infinity : this.hole.surfaceY(b.x, b.z, b.y + 0.05));
-      g.view.updateTrail(g.state === 'rolling' || (g.state === 'holed' && !b.atRest), dt, b.speed);
+      // no trail while the ball is inside a tiki tunnel
+      g.view.updateTrail((g.state === 'rolling' || (g.state === 'holed' && !b.atRest)) && b.transit <= 0, dt, b.speed);
     }
     // end conditions
     if (this.phase === 'play') {
@@ -275,6 +282,9 @@ export class HoleSession {
         },
         boost: () => this.hooks.boost(g),
         bumper: (x: number, y: number, z: number) => this.hooks.bumper(g, v.set(x, y, z)),
+        tunnel: (phase: 'in' | 'out', id: number, x: number, y: number, z: number) => this.hooks.tunnel?.(g, phase, id, v.set(x, y, z)),
+        geyser: (id: number, x: number, y: number, z: number) => this.hooks.geyser?.(g, id, v.set(x, y, z)),
+        water: (x: number, y: number, z: number, speed: number) => this.hooks.water?.(g, v.set(x, y, z), speed),
       };
       this.evCache.set(g, ev);
     }

@@ -75,6 +75,7 @@ export class Stage {
     const p = PRESETS[id] ?? PRESETS.day;
     if (this.sky && this.preset === p) return;
     this.preset = p;
+    sharedUniforms.uNight.value = p.night ? 1 : 0;
     if (this.sky) {
       this.scene.remove(this.sky);
       this.sky.geometry.dispose();

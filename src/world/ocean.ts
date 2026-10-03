@@ -26,6 +26,7 @@ export function makeOcean(p: EnvPreset, island: IslandBuild) {
       uSkyTop: { value: p.skyTop.clone() },
       uSkyHorizon: { value: p.skyHorizon.clone() },
       uTime: sharedUniforms.uTime,
+      uNight: sharedUniforms.uNight,
     },
     vertexShader: /* glsl */ `
       uniform float uTime;
@@ -45,7 +46,7 @@ export function makeOcean(p: EnvPreset, island: IslandBuild) {
       uniform sampler2D tDepth, tNormal, tFoam;
       uniform vec4 uDepthBounds;
       uniform vec3 uShallow, uDeep, uSunDir, uSunColor, uSkyTop, uSkyHorizon;
-      uniform float uTime;
+      uniform float uTime, uNight;
       varying vec3 vW;
       #include <fog_pars_fragment>
       float terrainH(vec2 xz) {
@@ -84,7 +85,12 @@ export function makeOcean(p: EnvPreset, island: IslandBuild) {
         float edge = smoothstep(0.42, 0.04, depth + (fn - 0.5) * 0.34);
         float band = smoothstep(0.55, 0.95, sin(depth * 16.0 - uTime * 2.0 + fn * 5.0)) * smoothstep(1.1, 0.25, depth) * smoothstep(0.0, 0.1, depth);
         float foam = clamp(edge + band * 0.55, 0.0, 1.0);
-        col = mix(col, vec3(0.97, 1.0, 1.0), foam * 0.88);
+        // at night the breaking waves and the shallows glow with bioluminescent plankton
+        vec3 foamCol = mix(vec3(0.97, 1.0, 1.0), vec3(0.3, 1.0, 0.92) * 1.9, uNight);
+        col = mix(col, foamCol, foam * 0.88);
+        float plankton = texture2D(tFoam, vW.xz * 0.5 + vec2(uTime * 0.03, -uTime * 0.02)).b * texture2D(tFoam, vW.xz * 0.37 - uTime * 0.025).b;
+        col += vec3(0.15, 0.85, 1.0) * smoothstep(0.4, 0.58, plankton) * shallowK * uNight * 1.6 * (1.0 - smoothstep(30.0, 120.0, viewDist));
+        col += vec3(0.0, 0.18, 0.22) * shallowK * uNight;
         float alpha = mix(1.0, 0.5, shallowK);
         alpha = max(alpha, foam * 0.95);
         gl_FragColor = vec4(col, alpha);

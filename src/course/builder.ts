@@ -8,10 +8,12 @@ import { PhysicsWorld, BALL_R } from '../physics/world';
 import { Mat } from '../physics/surfaces';
 import { box, union, segmentDist, bakeSDF, bakeSDFMulti, type SDF } from '../core/sdf';
 import { Rng, noise, hashString, type P2 } from '../core/math';
-import { makeTurfMaterial, makeStoneMaterial, makeSandMaterial, makeWoodMaterial } from '../render/materials';
+import { makeTurfMaterial, makeStoneMaterial, makeSandMaterial, makeWoodMaterial, makeBedMaterial } from '../render/materials';
 import { stoneBlockGeos } from '../world/props';
+import { GeoBuilder, M } from '../world/geo';
 import { Flag } from './flag';
 import { buildObstacles, type ObstacleContext, type BumperFx } from './obstacles';
+import { buildTunnel, buildGeyser, buildGust, buildStreams, type TunnelFx, type GeyserFx, type GustFx, type StreamFx } from './mechanics';
 
 export const CUP_R = 0.42;
 export const CUP_DEPTH = 0.55;
@@ -27,6 +29,8 @@ export interface CourseStyle {
   sand: number;
   wood: number;
   flag: number;
+  /** Creek bed tint. */
+  bed?: number;
 }
 
 export interface HoleBuild {
@@ -46,6 +50,10 @@ export interface HoleBuild {
   /** Candidate spots on top of stone walls (for torches etc.), with outward normal. */
   wallPosts: { x: number; y: number; z: number; nx: number; nz: number }[];
   bumpers: BumperFx[];
+  tunnels: TunnelFx[];
+  geysers: GeyserFx[];
+  gusts: GustFx[];
+  streams: StreamFx[];
   dispose(): void;
 }
 
@@ -123,10 +131,11 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
   const turfMat = makeTurfMaterial({ a: style.turfA, b: style.turfB });
   const sandMat = makeSandMaterial(style.sand);
   const glideMat = makeTurfMaterial({ a: 0x7fd6e8, b: 0x66c3d8 });
+  const bedMat = makeBedMaterial(style.bed ?? 0x6f8a86);
   const stoneMat = makeStoneMaterial({ moss: 0.55 });
   const plinthMat = makeStoneMaterial({ vertexColors: true, moss: 0.4, scale: 0.7 });
   const woodMat = makeWoodMaterial(0xffffff, { vertexColors: true });
-  disposables.push(turfMat, sandMat, glideMat, stoneMat, plinthMat, woodMat);
+  disposables.push(turfMat, sandMat, glideMat, bedMat, stoneMat, plinthMat, woodMat);
 
   const pieces = def.pieces.map((p) => ({ def: p, h: (typeof p.height === 'function' ? p.height : ((v: number) => () => v)(p.height ?? 1)) as HeightFn }));
   const cupPiece = pieces.findIndex((p) => p.def.shape.f(def.cup[0], def.cup[1]) < -0.5);
@@ -175,7 +184,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     // classify triangles
     const P = turf.positions;
     const I = turf.index;
-    const groups: number[][] = [[], [], []]; // turf, sand, glide
+    const groups: number[][] = [[], [], [], []]; // turf, sand, glide, creek bed
     for (let t = 0; t < I.length; t += 3) {
       const a = I[t], b = I[t + 1], c = I[t + 2];
       const cx = (P[a * 3] + P[b * 3] + P[c * 3]) / 3;
@@ -185,6 +194,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
       if (inZones(bridgeZones, cx, cz)) { mat = Mat.Wood; grp = -1; }
       else if (inZones(p.sand, cx, cz)) { mat = Mat.Sand; grp = 1; }
       else if (inZones(p.glide, cx, cz)) { mat = Mat.Glide; grp = 2; }
+      else if (inZones(p.bed, cx, cz)) { mat = Mat.Bed; grp = 3; }
       tb.addTri(P[a * 3], P[a * 3 + 1], P[a * 3 + 2], P[b * 3], P[b * 3 + 1], P[b * 3 + 2], P[c * 3], P[c * 3 + 1], P[c * 3 + 2], mat);
       if (grp >= 0) groups[grp].push(a, b, c);
     }
@@ -212,7 +222,7 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     });
     geo.setIndex(idx);
     geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, [turfMat, sandMat, glideMat]);
+    const mesh = new THREE.Mesh(geo, [turfMat, sandMat, glideMat, bedMat]);
     mesh.receiveShadow = true;
     group.add(mesh);
     turfMeshes.push({ mesh, positions: P, geo });
@@ -325,8 +335,11 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
       }
     }
 
-    // ---- bridges: planks + beams + posts + rope (visual) ----
-    for (const b of p.bridges ?? []) buildBridgeVisual(b, h, addBox, rng, group, disposables, style);
+    // ---- bridges: planks + beams + posts + rope, or lashed logs (visual) ----
+    for (const b of p.bridges ?? []) {
+      if (b.style === 'logs') buildLogBridgeVisual(b, h, rng, group, disposables, style);
+      else buildBridgeVisual(b, h, addBox, rng, group, disposables, style);
+    }
   });
 
   // ---------------------------------------------------------------- cup
@@ -405,6 +418,15 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     return best === -Infinity ? 0 : best;
   };
   const bumpers = buildObstacles(octx);
+  const tunnels: TunnelFx[] = [];
+  const geysers: GeyserFx[] = [];
+  const gusts: GustFx[] = [];
+  for (const o of def.obstacles ?? []) {
+    if (o.type === 'tunnel') tunnels.push(buildTunnel(octx, o, tunnels.length));
+    else if (o.type === 'geyser') geysers.push(buildGeyser(octx, o));
+    else if (o.type === 'gust') gusts.push(buildGust(octx, o));
+  }
+  const streams = buildStreams(def, world, group, disposables);
 
   // ---------------------------------------------------------------- stones (instanced)
   const stoneGeos = stoneBlockGeos();
@@ -531,6 +553,10 @@ export function buildHole(def: HoleDef, style: CourseStyle): HoleBuild {
     aoCircles,
     wallPosts,
     bumpers,
+    tunnels,
+    geysers,
+    gusts,
+    streams,
     dispose() {
       group.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -601,6 +627,49 @@ function placeWoodCurb(run: Run, h: HeightFn, H: number, rng: Rng, addBox: AddBo
   }
 }
 
+/** A rail-less crossing of three logs lashed together with rope. */
+function buildLogBridgeVisual(b: BridgeDef, h: HeightFn, rng: Rng, group: THREE.Group, disposables: { dispose(): void }[], style: CourseStyle) {
+  const dx = b.to[0] - b.from[0], dz = b.to[1] - b.from[1];
+  const len = Math.hypot(dx, dz);
+  const ux = dx / len, uz = dz / len;
+  const px = -uz, pz = ux;
+  const yaw = Math.atan2(dx, dz);
+  const n = 3;
+  const r = b.width / n / 2;
+  const gb = new GeoBuilder();
+  const wood = new THREE.Color(style.wood);
+  const cx = (b.from[0] + b.to[0]) / 2, cz = (b.from[1] + b.to[1]) / 2;
+  const top = h(cx, cz);
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2) * r * 2;
+    const rr = r * rng.range(0.94, 1.04);
+    const L = len + 0.5 + rng.range(-0.15, 0.25);
+    const g = new THREE.CylinderGeometry(rr, rr * 1.04, L, 12, 6);
+    // bark: darker grooves running along the log
+    const bark = (p: THREE.Vector3, nrm: THREE.Vector3) => {
+      const a = Math.atan2(nrm.y, nrm.x * px + nrm.z * pz);
+      const groove = Math.pow(Math.abs(Math.sin(a * 5 + i)), 6);
+      return wood.clone().multiplyScalar((0.62 + rng.next() * 0.05) * (1 - groove * 0.3));
+    };
+    const m = M.compose(cx + px * off, top - rr - 0.005, cz + pz * off, Math.PI / 2, yaw, 0);
+    gb.add(g, m, bark);
+    // pale cut ends
+    for (const e of [-1, 1]) gb.add(new THREE.CircleGeometry(rr * 0.92, 12), M.compose(cx + px * off + ux * e * (L / 2 + 0.002), top - rr, cz + pz * off + uz * e * (L / 2 + 0.002), 0, yaw + (e > 0 ? 0 : Math.PI), 0), 0xd8b07a);
+  }
+  // rope lashings
+  for (const t of [0.12, 0.5, 0.88]) {
+    const s = (t - 0.5) * len;
+    const ring = new THREE.TorusGeometry(b.width / 2 + 0.03, 0.035, 6, 20);
+    ring.scale(1, (r + 0.04) / (b.width / 2 + 0.03), 1);
+    gb.add(ring, M.compose(cx + ux * s, top - r, cz + uz * s, 0, yaw, 0), 0xd9c08a);
+  }
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+  const mesh = new THREE.Mesh(gb.build(false), mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  group.add(mesh);
+  disposables.push(mat);
+}
+
 function buildBridgeVisual(b: BridgeDef, h: HeightFn, addBox: AddBox, rng: Rng, group: THREE.Group, disposables: { dispose(): void }[], style: CourseStyle) {
   const dx = b.to[0] - b.from[0], dz = b.to[1] - b.from[1];
   const len = Math.hypot(dx, dz);
@@ -629,7 +698,8 @@ function buildBridgeVisual(b: BridgeDef, h: HeightFn, addBox: AddBox, rng: Rng, 
       addBox((x0 + x1) / 2, (y0 + y1) / 2 - 0.2, (z0 + z1) / 2, 0.18, 0.22, s1 - s0 + 0.02, yaw, woodC.clone().multiplyScalar(0.7), Math.atan2(y0 - y1, s1 - s0));
     }
   }
-  // posts with rope wraps + rope railing
+  // posts with rope wraps + rope railing (a boardwalk has none)
+  if (b.style === 'boardwalk') return;
   const postS = [0.15, len / 2, len - 0.15];
   const ropeMat = new THREE.MeshStandardMaterial({ color: 0xd9c08a, roughness: 0.9 });
   disposables.push(ropeMat);

@@ -41,6 +41,22 @@ export function bowl(cx: number, cz: number, R: number, depth: number): HeightFn
   };
 }
 
+/**
+ * Conical funnel: a constant slope (steep enough that a ball never stops on it) down to the centre,
+ * rounded off at the rim. Used for blowhole vents.
+ */
+export function funnel(cx: number, cz: number, R: number, depth: number): HeightFn {
+  return (x, z) => {
+    const r = Math.hypot(x - cx, z - cz);
+    if (r >= R) return 0;
+    const u = r / R;
+    // linear cone blended into a soft lip over the outer quarter
+    const cone = 1 - u;
+    const lip = u > 0.75 ? smoothstep(1, 0.75, u) * 0.25 : 0;
+    return -depth * (u > 0.75 ? lip : cone);
+  };
+}
+
 /** Gaussian hump. */
 export function hump(cx: number, cz: number, R: number, h: number): HeightFn {
   return (x, z) => h * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (R * R));

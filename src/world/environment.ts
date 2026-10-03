@@ -26,6 +26,8 @@ export interface EnvPreset {
   envIntensity: number;
   islandTint: THREE.Color;
   torchBoost: number;
+  /** Night sky (stars, moon instead of sun) and glowing water. */
+  night?: boolean;
 }
 
 const C = (h: number) => new THREE.Color(h);
@@ -107,6 +109,32 @@ export const PRESETS: Record<string, EnvPreset> = {
     islandTint: C(0x9a6a8a),
     torchBoost: 1.6,
   },
+  night: {
+    id: 'night',
+    // the "sun" is the moon: cool, fairly bright so the course stays readable
+    sunDir: dir(-58, 40),
+    sunColor: C(0xb4c8ff),
+    sunIntensity: 2.3,
+    skyTop: C(0x040a22),
+    skyHorizon: C(0x1f3d74),
+    skyBottom: C(0x081830),
+    sunGlow: C(0xd6e4ff),
+    hemiSky: C(0x5a74c8),
+    hemiGround: C(0x1c2c2a),
+    hemiIntensity: 1.05,
+    fog: C(0x0f2348),
+    fogNear: 150,
+    fogFar: 760,
+    waterShallow: C(0x10708a),
+    waterDeep: C(0x03183a),
+    cloudLit: C(0x7a90cc),
+    cloudShade: C(0x161f40),
+    exposure: 1.0,
+    envIntensity: 0.32,
+    islandTint: C(0x0b1530),
+    torchBoost: 2.4,
+    night: true,
+  },
 };
 
 // ------------------------------------------------------------------ sky dome
@@ -123,6 +151,7 @@ export function makeSky(p: EnvPreset) {
       uSunDir: { value: p.sunDir.clone() },
       uSunColor: { value: p.sunGlow.clone() },
       uTime: sharedUniforms.uTime,
+      uNightSky: { value: p.night ? 1 : 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -133,7 +162,20 @@ export function makeSky(p: EnvPreset) {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uTop, uHorizon, uBottom, uSunDir, uSunColor;
+      uniform float uNightSky, uTime;
       varying vec3 vDir;
+      float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+      float starLayer(vec3 d, float scale, float density) {
+        vec2 sc = vec2(atan(d.z, d.x) * scale, d.y * scale * 1.6);
+        vec2 cell = floor(sc);
+        vec2 f = fract(sc) - 0.5;
+        float h = hash12(cell);
+        if (h < 1.0 - density) return 0.0;
+        vec2 o = vec2(hash12(cell + 7.1), hash12(cell + 3.7)) - 0.5;
+        float r = length(f - o * 0.7);
+        float tw = 0.65 + 0.35 * sin(uTime * (1.5 + h * 3.0) + h * 40.0);
+        return smoothstep(0.12, 0.0, r) * tw * (0.5 + h * 0.8);
+      }
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
@@ -145,8 +187,24 @@ export function makeSky(p: EnvPreset) {
           col = mix(uHorizon, uBottom, smoothstep(0.0, -0.08, h));
         }
         float sd = max(dot(d, normalize(uSunDir)), 0.0);
-        col += uSunColor * (pow(sd, 6.0) * 0.28 + pow(sd, 48.0) * 0.55);
-        col += uSunColor * smoothstep(0.99935, 0.99965, sd) * 6.0;
+        if (uNightSky > 0.5) {
+          // milky way: a faint band of haze with extra stars in it
+          vec3 bandN = normalize(vec3(0.35, 0.55, -0.75));
+          float band = exp(-pow(dot(d, bandN) * 3.2, 2.0)) * smoothstep(0.02, 0.3, h);
+          float haze = hash12(floor(vec2(atan(d.z, d.x) * 40.0, d.y * 60.0))) * 0.35 + 0.65;
+          col += vec3(0.16, 0.14, 0.32) * band * haze * 0.6;
+          float stars = starLayer(d, 70.0, 0.06 + band * 0.12) + starLayer(d, 140.0, 0.05 + band * 0.2) * 0.7;
+          col += vec3(0.9, 0.95, 1.0) * stars * smoothstep(0.02, 0.2, h) * 1.6;
+          // the moon: a big mottled disk with a soft halo
+          col += uSunColor * (pow(sd, 10.0) * 0.12 + pow(sd, 90.0) * 0.35);
+          float disk = smoothstep(0.99875, 0.9990, sd);
+          vec3 md = d - normalize(uSunDir);
+          float mott = hash12(floor(md.xy * 900.0)) * 0.1 + sin(md.x * 2400.0) * sin(md.y * 2100.0) * 0.06;
+          col = mix(col, vec3(1.0, 0.98, 0.92) * (1.35 - mott), disk);
+        } else {
+          col += uSunColor * (pow(sd, 6.0) * 0.28 + pow(sd, 48.0) * 0.55);
+          col += uSunColor * smoothstep(0.99935, 0.99965, sd) * 6.0;
+        }
         // gentle haze near horizon
         col = mix(col, uHorizon * 1.05, (1.0 - smoothstep(0.0, 0.12, abs(h))) * 0.35);
         gl_FragColor = vec4(col, 1.0);

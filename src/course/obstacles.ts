@@ -39,7 +39,7 @@ export function getRockMaterial() {
   return rockMaterial;
 }
 
-function addGeoCollider(tb: TriMeshBuilder, geo: THREE.BufferGeometry, m: THREE.Matrix4, mat: number) {
+export function addGeoCollider(tb: TriMeshBuilder, geo: THREE.BufferGeometry, m: THREE.Matrix4, mat: number) {
   const pos = geo.getAttribute('position').array as ArrayLike<number>;
   const idx = geo.index ? (geo.index.array as ArrayLike<number>) : null;
   tb.addIndexed(pos, idx, mat, m.elements);

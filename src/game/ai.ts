@@ -10,13 +10,24 @@ export const SPEED_MIN = 0.9;
 export const SPEED_MAX = 18.5;
 
 // ----------------------------------------------------------------------------------- nav field
+const RING = Array.from({ length: 8 }, (_, k) => [Math.cos((k * Math.PI) / 4), Math.sin((k * Math.PI) / 4)]);
+/** The parts of a built hole the navigation field needs. */
+export interface NavHole {
+  def: HoleDef;
+  pieces: { shape: { f(x: number, z: number): number }; h(x: number, z: number): number }[];
+  cup: { x: number; z: number };
+  bounds: { min: { x: number; z: number }; max: { x: number; z: number } };
+  /** Creek currents: riding downstream is cheap, fighting the current is nearly impossible. */
+  streams?: { channel: { f(x: number, z: number): number }; field(x: number, z: number, out: Float64Array): void }[];
+}
+
 export class NavField {
   x0: number; z0: number; nx: number; nz: number; cell: number;
   dist: Float64Array;
   height: Float32Array;
   walk: Uint8Array;
 
-  constructor(hole: { def: HoleDef; pieces: { shape: { f(x: number, z: number): number }; h(x: number, z: number): number }[]; cup: { x: number; z: number }; bounds: { min: { x: number; z: number }; max: { x: number; z: number } } }, cell = 0.5) {
+  constructor(hole: NavHole, cell = 0.5) {
     this.cell = cell;
     this.x0 = hole.bounds.min.x - 1;
     this.z0 = hole.bounds.min.z - 1;
@@ -27,40 +38,74 @@ export class NavField {
     this.height = new Float32Array(N).fill(-99);
     this.walk = new Uint8Array(N);
     const margin = BALL_R + 0.12;
+    const onCourse = (x: number, z: number, lim: number) => {
+      for (const p of hole.pieces) if (p.shape.f(x, z) < lim) return true;
+      return false;
+    };
     for (let j = 0; j < this.nz; j++)
       for (let i = 0; i < this.nx; i++) {
         const x = this.x0 + i * cell, z = this.z0 + j * cell;
+        // walkable when the cell and a ring of points `margin` around it are all on the course
+        // (so pieces that meet edge to edge connect), at the height of the highest piece there
         let best = -Infinity;
-        for (const p of hole.pieces) if (p.shape.f(x, z) < -margin) best = Math.max(best, p.h(x, z));
-        if (best > -Infinity) {
+        for (const p of hole.pieces) if (p.shape.f(x, z) < 0.05) best = Math.max(best, p.h(x, z));
+        let ok = best > -Infinity && onCourse(x, z, 0);
+        for (let r = 0; ok && r < 8; r++) ok = onCourse(x + RING[r][0] * margin, z + RING[r][1] * margin, 0);
+        if (ok) {
           this.walk[j * this.nx + i] = 1;
           this.height[j * this.nx + i] = best;
         }
       }
-    // obstacles block (approx) - rocks/tikis/bumpers/spinner posts
+    // obstacles block (approx) - rocks/tikis/bumpers/spinner posts/tunnel heads
     for (const o of hole.def.obstacles ?? []) {
-      let r = 0;
-      if (o.type === 'rock') r = o.r * 0.9;
-      else if (o.type === 'tiki') r = 0.7 * (o.scale ?? 1);
-      else if (o.type === 'bumper') r = (o.r ?? 0.45);
-      else if (o.type === 'spinner') r = 0.35;
-      else if (o.type === 'planter') r = o.r;
-      if (!r || !('at' in o)) continue;
-      const [ox, oz] = o.at;
-      this.forCells(ox, oz, r + BALL_R, (k) => (this.walk[k] = 0));
+      const block: [number, number, number][] = [];
+      if (o.type === 'rock') block.push([o.at[0], o.at[1], o.r * 0.9]);
+      else if (o.type === 'tiki') block.push([o.at[0], o.at[1], 0.7 * (o.scale ?? 1)]);
+      else if (o.type === 'bumper') block.push([o.at[0], o.at[1], o.r ?? 0.45]);
+      else if (o.type === 'spinner') block.push([o.at[0], o.at[1], 0.35]);
+      else if (o.type === 'planter') block.push([o.at[0], o.at[1], o.r]);
+      else if (o.type === 'tunnel') {
+        const s = o.scale ?? 1;
+        block.push([o.at[0], o.at[1], 1.2 * s], [o.to[0], o.to[1], 1.2 * s]);
+      }
+      for (const [ox, oz, r] of block) this.forCells(ox, oz, r + BALL_R, (k) => (this.walk[k] = 0));
     }
-    // links (jumps): ramps launch the ball forward over gaps
+    // links: ramps launch the ball forward over gaps, tunnels and blowholes carry it elsewhere
     const links: [number, number, number][] = [];
     for (const o of hole.def.obstacles ?? []) {
-      if (o.type !== 'ramp') continue;
-      const dx = Math.cos(o.dir), dz = Math.sin(o.dir);
-      const sx = o.at[0], sz = o.at[1];
-      const from = this.idx(sx - dx * 1.0, sz - dz * 1.0);
-      if (from < 0) continue;
-      for (let d = o.len + 3; d < o.len + 16; d += 0.5) {
-        const k = this.idx(sx + dx * d, sz + dz * d);
-        if (k >= 0 && this.walk[k]) links.push([from, k, d * 1.15]);
+      if (o.type === 'ramp') {
+        const dx = Math.cos(o.dir), dz = Math.sin(o.dir);
+        const sx = o.at[0], sz = o.at[1];
+        const from = this.idx(sx - dx * 1.0, sz - dz * 1.0);
+        if (from < 0) continue;
+        for (let d = o.len + 3; d < o.len + 16; d += 0.5) {
+          const k = this.idx(sx + dx * d, sz + dz * d);
+          if (k >= 0 && this.walk[k]) links.push([from, k, d * 1.15]);
+        }
+      } else if (o.type === 'tunnel') {
+        const s = o.scale ?? 1;
+        const from = this.nearestWalkable(o.at[0] - Math.cos(o.dir) * 1.7 * s, o.at[1] - Math.sin(o.dir) * 1.7 * s);
+        const to = this.nearestWalkable(o.to[0] + Math.cos(o.toDir) * 2.0 * s, o.to[1] + Math.sin(o.toDir) * 2.0 * s);
+        if (from >= 0 && to >= 0) links.push([from, to, 2.5]);
+      } else if (o.type === 'geyser') {
+        const from = this.nearestWalkable(o.at[0], o.at[1]);
+        const to = this.nearestWalkable(o.target[0], o.target[1]);
+        if (from >= 0 && to >= 0) links.push([from, to, 2.5]);
       }
+    }
+    // currents: per-cell flow, used to make upstream travel expensive
+    const flowX = new Float32Array(N), flowZ = new Float32Array(N);
+    const tmpF = new Float64Array(2);
+    for (const st of hole.streams ?? []) {
+      for (let j = 0; j < this.nz; j++)
+        for (let i = 0; i < this.nx; i++) {
+          const k = j * this.nx + i;
+          const x = this.x0 + i * cell, z = this.z0 + j * cell;
+          if (!this.walk[k] || st.channel.f(x, z) > 0) continue;
+          st.field(x, z, tmpF);
+          flowX[k] = tmpF[0];
+          flowZ[k] = tmpF[1];
+        }
     }
     // dijkstra from cup
     const start = this.idx(hole.cup.x, hole.cup.z);
@@ -87,7 +132,14 @@ export class NavField {
         const dh = this.height[kk] - this.height[k];
         if (Math.abs(dh) > 0.25 * w) continue;
         // uphill (towards the cup going down means the ball must climb): mild extra cost
-        const nd = d + w * cell * (1 + Math.max(0, -dh) * 0.6);
+        let cost = w * cell * (1 + Math.max(0, -dh) * 0.6);
+        // the ball travels kk -> k: cheap with the current, very expensive against it
+        const fx = flowX[kk] + flowX[k], fz = flowZ[kk] + flowZ[k];
+        if (fx || fz) {
+          const along = (-di * fx - dj * fz) / (w * (Math.hypot(fx, fz) || 1));
+          cost *= along > 0 ? 1 - along * 0.7 : 1 - along * 6;
+        }
+        const nd = d + cost;
         if (nd < this.dist[kk]) {
           this.dist[kk] = nd;
           heap.push(kk, nd);
@@ -102,6 +154,21 @@ export class NavField {
         }
       }
     }
+  }
+
+  /** Index of the walkable cell nearest to (x, z) within a couple of units, or -1. */
+  nearestWalkable(x: number, z: number) {
+    let best = -1, bd = Infinity;
+    const c = this.cell;
+    for (let j = Math.floor((z - 2 - this.z0) / c); j <= Math.ceil((z + 2 - this.z0) / c); j++)
+      for (let i = Math.floor((x - 2 - this.x0) / c); i <= Math.ceil((x + 2 - this.x0) / c); i++) {
+        if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) continue;
+        const k = j * this.nx + i;
+        if (!this.walk[k]) continue;
+        const d = (this.x0 + i * c - x) ** 2 + (this.z0 + j * c - z) ** 2;
+        if (d < bd) { bd = d; best = k; }
+      }
+    return best;
   }
 
   idx(x: number, z: number) {
@@ -259,6 +326,25 @@ export class ShotSearch {
         this.queue.push({ ang, p: pw, dx: Math.cos(ang), dz: Math.sin(ang), speed: SPEED_MIN + Math.pow(pw, 1.08) * (SPEED_MAX - SPEED_MIN) });
       }
     }
+    // aim straight at the cup and at anything that carries the ball (tunnel mouths, blowhole vents)
+    // with finer power steps: narrow shortcuts are easy to miss on the coarse grid
+    const targets: [number, number][] = [];
+    if (world.cup) targets.push([world.cup.x, world.cup.z]);
+    for (const t of world.teleporters) targets.push([t.x, t.z]);
+    for (const g of world.geysers) targets.push([g.x, g.z]);
+    for (const [tx, tz] of targets) {
+      const d = Math.hypot(tx - sx, tz - sz);
+      if (d < 0.3 || d > 32) continue;
+      const base = Math.atan2(tz - sz, tx - sx);
+      const spread = Math.min(0.05, 0.5 / d);
+      for (const k of [-1, 0, 1]) {
+        const ang = base + k * spread;
+        for (let p = 1; p <= 14; p++) {
+          const pw = p / 14;
+          this.queue.push({ ang, p: pw, dx: Math.cos(ang), dz: Math.sin(ang), speed: SPEED_MIN + Math.pow(pw, 1.08) * (SPEED_MAX - SPEED_MIN) });
+        }
+      }
+    }
   }
 
   /** Evaluate up to n candidates. */
@@ -345,12 +431,16 @@ export class ShotSearch {
   }
 }
 
-/** Apply human-like error to a plan based on skill (0..1). */
+/**
+ * Apply human-like error to a plan based on skill (0..1): aim, power, and timing (`lag`: seconds the
+ * shot goes off later than planned, which matters past spinners, sliders and gusts).
+ */
 export function jitterPlan(p: { dx: number; dz: number; speed: number; pu?: PowerUp | null }, skill: number, rng: Rng) {
   const angErr = rng.gauss(0, (1 - skill) * 0.07 + 0.004);
   const spErr = rng.gauss(0, (1 - skill) * 0.08 + 0.01);
   const a = Math.atan2(p.dz, p.dx) + angErr;
-  return { dx: Math.cos(a), dz: Math.sin(a), speed: Math.max(SPEED_MIN, Math.min(SPEED_MAX, p.speed * (1 + spErr))), pu: p.pu ?? null };
+  const lag = Math.abs(rng.gauss(0, (1 - skill) * 0.35 + 0.02));
+  return { dx: Math.cos(a), dz: Math.sin(a), speed: Math.max(SPEED_MIN, Math.min(SPEED_MAX, p.speed * (1 + spErr))), pu: p.pu ?? null, lag };
 }
 
 export type { HoleBuild };
