@@ -236,7 +236,7 @@ export class UI {
     );
     const btns = el('div', 'hud-buttons');
     const recenter = this.button('', 'round glass recenter gone', () => this.onRecenter(), ICON.locate);
-    recenter.setAttribute('aria-label', 'Back to your ball');
+    recenter.setAttribute('aria-label', 'Reset camera');
     btns.append(this.button('', 'round glass', () => this.onPause(), ICON.pause), this.button('', 'round glass', () => this.onOverview(), ICON.map), recenter);
     this.hudEls.recenter = recenter;
     top.append(card, btns);
@@ -260,7 +260,7 @@ export class UI {
     this.hudEls.st = card.querySelector('.st')!;
   }
 
-  /** Show the "back to your ball" button while the view is panned away (cheap to call every frame). */
+  /** Show the reset-camera button once the view has been turned away (cheap to call every frame). */
   recenter(on: boolean) {
     const b = this.hudEls.recenter;
     if (b && b.classList.contains('gone') === on) b.classList.toggle('gone', !on);
@@ -702,9 +702,9 @@ export class UI {
     const sheet = el('div', 'sheet panel', `<div class="plank">How to Play</div>`);
     const close = this.button('', 'round pink close', () => { back.remove(); onClose(); }, ICON.close);
     const rows = [
-      ['#f5a21f', ICON.hand, 'Pull back & release', 'Touch your ball and drag away from where you want to shoot. Pull further for more power, let go to putt.'],
+      ['#f5a21f', ICON.hand, 'Pull back & release', 'Touch near your ball and drag away from where you want to shoot. Pull further for more power, let go to putt.'],
       ['#12a593', ICON.flag, 'Sink it in few strokes', 'Beat par for stars and coins. A hole-in-one pays big!'],
-      ['#2a8de0', ICON.locate, 'Look around', 'Swipe anywhere off your ball to scout the hole, pinch to zoom, and use two fingers (or right-drag / Q & E) to rotate. Tap the crosshair to jump back to your ball, or the map for an overview. Prefer dragging anywhere to aim? Turn on Aim from anywhere in Settings.'],
+      ['#2a8de0', ICON.locate, 'Look around', 'Drag anywhere away from your ball to swing the camera all the way round it, and pinch to zoom. The view always stays on your ball and turns back to face the hole after each shot. Tap the crosshair to reset it, or the map for an overview. Prefer dragging anywhere to aim? Turn on Aim from anywhere in Settings.'],
       ['#f0365a', ICON.bolt, 'Ramps, boosts & bumpers', 'Ramps launch you over water and lava. Boost pads add speed. Tiki drums bounce you back hard.'],
       ['#ff7a1a', ICON.flame, 'Power-ups', 'Tap Fire, Glide or Bounce before a shot. Fire adds raw power, Glide slides far across turf and sand, Bounce hops the ball over obstacles. One of each per round.'],
       ['#7a52e0', ICON.swords, 'Tiki Battle', 'Play the same holes at the same time as 3 rivals. Fewest strokes wins — ties go to the fastest.'],

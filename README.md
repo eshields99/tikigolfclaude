@@ -11,23 +11,23 @@ npm install
 npm run dev          # http://localhost:5173 (also on your LAN, for testing on a phone)
 ```
 
-Touch your ball and pull back away from where you want it to go. Pull further for more
-power, release to putt. Drag back near your start point to cancel. As in Golf Battle, a swipe
-anywhere else looks around the hole, so you can scout the other lanes before you choose one.
-The view stays where you leave it until you shoot or tap the crosshair button.
+Touch near your ball and pull back away from where you want it to go. Pull further for more
+power, release to putt. Drag back near your start point to cancel. As in Golf Battle, the camera
+always stays on your ball and turns to face the hole on its own. A drag that starts anywhere away
+from the ball (outside an invisible ring around it) swings the camera all the way round the ball,
+so you can check the other lanes before you choose one.
 
 | Action | Touch | Mouse / keyboard |
 | --- | --- | --- |
 | Aim and shoot | drag from your ball, pull back, release | left-drag from your ball |
-| Look around | swipe anywhere else (flick to glide) | left-drag or middle-drag elsewhere, arrows / WASD |
-| Back to your ball | crosshair button | crosshair button, or C |
-| Rotate camera | two-finger drag | right-drag, or Q / E |
+| Turn the camera round the ball | drag anywhere else, or two-finger drag | left-drag elsewhere, right-drag, ← / → or Q / E |
 | Zoom | pinch | mouse wheel |
-| Course overview (drag and zoom it too) | map button | map button |
+| Reset the camera | crosshair button | crosshair button, or C |
+| Course overview | map button | map button |
 | Skip the hole intro | tap | click |
 
 Prefer the old drag-anywhere aiming? Turn on **Aim from anywhere** in Settings. Then any
-drag aims, a two-finger drag looks around and a two-finger twist rotates.
+drag aims and a two-finger drag turns the camera.
 
 ## Game modes
 
